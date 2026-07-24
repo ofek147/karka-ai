@@ -1,12 +1,23 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from .clients.iplan_client import get_plans_by_centroid
 from .clients.govmap_client import get_parcel_geometry
 from .cache.redis_cache import get_cached, set_cached
 from .models.parcel import ParcelFullData, AskRequest, AskResponse
 from .services.claude_service import ask_claude
 from .config import settings
+from .routers import leads as leads_router
 
 app = FastAPI(title="karka-ai API", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+app.include_router(leads_router.router)
 
 
 @app.get("/api/parcel", response_model=ParcelFullData)
