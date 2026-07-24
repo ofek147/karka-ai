@@ -2,7 +2,8 @@ from fastapi import FastAPI, HTTPException
 from .clients.iplan_client import get_plans_by_centroid
 from .clients.govmap_client import get_parcel_geometry
 from .cache.redis_cache import get_cached, set_cached
-from .models.parcel import ParcelFullData
+from .models.parcel import ParcelFullData, AskRequest, AskResponse
+from .services.claude_service import ask_claude
 from .config import settings
 
 app = FastAPI(title="karka-ai API", version="0.1.0")
@@ -34,6 +35,38 @@ async def get_parcel(gush: int, helka: int):
 
     await set_cached(cache_key, result.model_dump())
     return result
+
+
+@app.post("/api/ask", response_model=AskResponse)
+async def ask_about_parcel(req: AskRequest):
+    cache_key = f"parcel:{req.gush}:{req.helka}"
+    cached = await get_cached(cache_key)
+
+    if cached:
+        cached["source"] = "cache"
+        parcel_data = ParcelFullData(**cached)
+    else:
+        geometry = await get_parcel_geometry(req.gush, req.helka)
+        plans = []
+        if geometry.centroid_x and geometry.centroid_y:
+            plans = await get_plans_by_centroid(geometry.centroid_x, geometry.centroid_y)
+        source = "mock" if (settings.mock_mode or not settings.govmap_token) else "live"
+        parcel_data = ParcelFullData(
+            gush=req.gush, helka=req.helka,
+            geometry=geometry, plans=plans,
+            source=source,
+        )
+        await set_cached(cache_key, parcel_data.model_dump())
+
+    answer = await ask_claude(req.gush, req.helka, parcel_data, req.question)
+
+    return AskResponse(
+        gush=req.gush,
+        helka=req.helka,
+        question=req.question,
+        answer=answer,
+        source=parcel_data.source,
+    )
 
 
 @app.get("/health")

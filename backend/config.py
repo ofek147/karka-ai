@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379"
     cache_ttl_seconds: int = 86400
     mock_mode: bool = True
+    anthropic_api_key: str = ""
 
     class Config:
         env_file = ".env"

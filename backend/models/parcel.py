@@ -25,3 +25,17 @@ class ParcelFullData(BaseModel):
     geometry: Optional[ParcelGovmap] = None
     plans: List[PlanInfo] = []
     source: str  # "live" | "mock" | "cache"
+
+
+class AskRequest(BaseModel):
+    gush: int
+    helka: int
+    question: str
+
+
+class AskResponse(BaseModel):
+    gush: int
+    helka: int
+    question: str
+    answer: str
+    source: str  # "mock" | "live" | "cache"
