@@ -62,3 +62,43 @@ export async function getSessionMessages(sessionId: string): Promise<Message[]> 
   if (!res.ok) return [];
   return res.json();
 }
+
+export async function requestOtp(phone: string): Promise<void> {
+  await fetch(`${API}/api/auth/request-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone }),
+  });
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<User> {
+  const res = await fetch(`${API}/api/auth/verify-otp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phone, code }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "קוד שגוי או פג תוקף");
+  }
+  const data = await res.json();
+  return data.user;
+}
+
+export async function requestMagicLink(email: string): Promise<void> {
+  await fetch(`${API}/api/auth/request-magic`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyMagicToken(token: string): Promise<User> {
+  const res = await fetch(`${API}/api/auth/verify-magic?token=${encodeURIComponent(token)}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || "קישור לא תקין");
+  }
+  const data = await res.json();
+  return data.user;
+}
