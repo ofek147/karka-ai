@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import KarkaLogo from "@/components/KarkaLogo";
 
 const EXAMPLE_QUESTIONS = [
   "גוש 6111 חלקה 50 — כמה יחידות דיור אפשר לבנות?",
@@ -18,10 +19,7 @@ export default function Home() {
 
       {/* Header */}
       <header className="relative z-20 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span style={{ color: "#c4a044" }} className="text-2xl">◈</span>
-          <span className="font-bold text-xl text-white tracking-tight">karka-ai</span>
-        </div>
+        <KarkaLogo size="md" />
         <Link
           href="/chat"
           className="text-sm font-semibold px-5 py-2 rounded-lg text-white border border-white/20 hover:bg-white/10 transition-colors"
@@ -41,6 +39,9 @@ export default function Home() {
 
         {/* Content */}
         <div className="relative z-10 max-w-2xl mx-auto text-center">
+          <div className="mb-6">
+            <KarkaLogo size="lg" />
+          </div>
           <div
             className="inline-flex items-center gap-2 border text-xs px-3 py-1.5 rounded-full mb-6 font-medium"
             style={{ background: "rgba(196,160,68,0.1)", borderColor: "rgba(196,160,68,0.3)", color: "#d4b05a" }}

@@ -1,6 +1,7 @@
 "use client";
 import { ChatSession } from "@/lib/types";
 import Link from "next/link";
+import KarkaLogo from "@/components/KarkaLogo";
 
 interface Props {
   sessions: ChatSession[];
@@ -22,9 +23,8 @@ export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isO
       `}
     >
       {/* Logo */}
-      <div className="px-4 py-4 border-b border-white/10 flex items-center gap-2">
-        <span className="text-[#c4a044] text-xl">◈</span>
-        <Link href="/" className="font-bold text-base text-white tracking-tight">karka-ai</Link>
+      <div className="px-4 py-4 border-b border-white/10">
+        <Link href="/"><KarkaLogo size="sm" /></Link>
       </div>
 
       {/* New chat */}

@@ -10,6 +10,8 @@ interface UserContextValue {
   sessions: ChatSession[];
   showRegister: boolean;
   setShowRegister: (v: boolean) => void;
+  sidebarOpen: boolean;
+  setSidebarOpen: (v: boolean | ((prev: boolean) => boolean)) => void;
   refreshSessions: () => void;
   handleRegistered: (user: User, currentMessages?: Message[], currentSessionId?: string) => Promise<void>;
   register: (name: string, phone: string, email: string) => Promise<User>;
@@ -21,6 +23,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [showRegister, setShowRegister] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const u = getUser();
@@ -57,6 +60,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   return (
     <UserContext.Provider value={{
       user, sessions, showRegister, setShowRegister,
+      sidebarOpen, setSidebarOpen,
       refreshSessions, handleRegistered, register
     }}>
       {children}
