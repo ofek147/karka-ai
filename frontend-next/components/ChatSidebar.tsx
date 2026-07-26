@@ -23,7 +23,7 @@ export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isO
     >
       {/* Logo */}
       <div className="px-4 py-4 border-b border-white/10 flex items-center gap-2">
-        <span className="text-[#d97706] text-xl">◈</span>
+        <span className="text-[#c4a044] text-xl">◈</span>
         <Link href="/" className="font-bold text-base text-white tracking-tight">karka-ai</Link>
       </div>
 
@@ -33,7 +33,7 @@ export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isO
           onClick={onNewChat}
           className="w-full flex items-center gap-2 px-3 py-2.5 rounded-lg border border-white/10 bg-white/5 text-sm text-slate-300 hover:bg-white/10 hover:text-white transition-colors"
         >
-          <span className="text-[#d97706] text-base leading-none">+</span>
+          <span className="text-[#c4a044] text-base leading-none">+</span>
           שיחה חדשה
         </button>
       </div>
@@ -58,7 +58,7 @@ export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isO
                 className={`
                   block px-3 py-2.5 rounded-lg text-sm truncate transition-colors
                   ${currentSessionId === s.id
-                    ? "bg-[#d97706]/15 text-[#f59e0b] border border-[#d97706]/20"
+                    ? "bg-[#c4a044]/15 text-[#d4b05a] border border-[#c4a044]/20"
                     : "text-slate-400 hover:bg-white/5 hover:text-slate-200"}
                 `}
               >

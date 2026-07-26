@@ -40,7 +40,7 @@ export default function RegisterModal({ onSuccess }: Props) {
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-100">
         {/* Header */}
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-[#d97706] text-xl">◈</span>
+          <span className="text-[#c4a044] text-xl">◈</span>
           <h2 className="text-xl font-bold text-[#0f172a]">המשך את השיחה</h2>
         </div>
         <p className="text-sm text-slate-500 mb-6 mr-7">
@@ -53,7 +53,7 @@ export default function RegisterModal({ onSuccess }: Props) {
             placeholder="שם מלא"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all"
             style={{ fontSize: "16px" }}
           />
           <input
@@ -61,7 +61,7 @@ export default function RegisterModal({ onSuccess }: Props) {
             placeholder="טלפון"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all"
             style={{ fontSize: "16px" }}
           />
           <input
@@ -69,7 +69,7 @@ export default function RegisterModal({ onSuccess }: Props) {
             placeholder="אימייל"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all"
             style={{ fontSize: "16px" }}
           />
 
@@ -78,7 +78,7 @@ export default function RegisterModal({ onSuccess }: Props) {
           <button
             type="submit"
             disabled={loading}
-            className="bg-[#d97706] text-white py-3 rounded-xl font-semibold hover:bg-[#b45309] transition-colors disabled:opacity-60 mt-1 shadow-sm"
+            className="bg-[#c4a044] text-white py-3 rounded-xl font-semibold hover:bg-[#b38c36] transition-colors disabled:opacity-60 mt-1 shadow-sm"
           >
             {loading ? "רושם..." : "המשך בחינם"}
           </button>

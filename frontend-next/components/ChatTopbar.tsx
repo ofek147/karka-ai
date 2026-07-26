@@ -22,7 +22,7 @@ export default function ChatTopbar({ onMenuClick }: Props) {
           </button>
         )}
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-[#d97706] text-lg">◈</span>
+          <span className="text-[#c4a044] text-lg">◈</span>
           <span className="font-bold text-white text-base tracking-tight">karka-ai</span>
         </Link>
       </div>
@@ -31,7 +31,7 @@ export default function ChatTopbar({ onMenuClick }: Props) {
         {!user ? (
           <button
             onClick={() => setShowRegister(true)}
-            className="text-sm text-[#f59e0b] font-medium hover:text-[#d97706] transition-colors"
+            className="text-sm text-[#d4b05a] font-medium hover:text-[#c4a044] transition-colors"
           >
             הירשם לשמירת שיחות
           </button>

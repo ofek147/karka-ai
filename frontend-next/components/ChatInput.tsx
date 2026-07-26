@@ -22,7 +22,7 @@ export default function ChatInput({ value, onChange, onSend, onKeyDown, loading,
         )}
 
         {/* Input row */}
-        <div className="flex gap-2 items-end bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm focus-within:border-[#d97706]/60 focus-within:shadow-[0_0_0_3px_rgba(217,119,6,0.1)] transition-all">
+        <div className="flex gap-2 items-end bg-white border border-slate-200 rounded-2xl px-4 py-3 shadow-sm focus-within:border-[#c4a044]/60 focus-within:shadow-[0_0_0_3px_rgba(217,119,6,0.1)] transition-all">
           <textarea
             value={value}
             onChange={(e) => onChange(e.target.value)}
@@ -36,7 +36,7 @@ export default function ChatInput({ value, onChange, onSend, onKeyDown, loading,
           <button
             onClick={onSend}
             disabled={!value.trim() || loading}
-            className="shrink-0 w-9 h-9 rounded-xl bg-[#d97706] text-white flex items-center justify-center hover:bg-[#b45309] disabled:opacity-30 transition-all disabled:cursor-not-allowed"
+            className="shrink-0 w-9 h-9 rounded-xl bg-[#c4a044] text-white flex items-center justify-center hover:bg-[#b38c36] disabled:opacity-30 transition-all disabled:cursor-not-allowed"
             aria-label="שלח"
           >
             {loading ? (
