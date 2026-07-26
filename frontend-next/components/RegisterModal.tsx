@@ -35,49 +35,56 @@ export default function RegisterModal({ onSuccess }: Props) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-1">המשך את השיחה</h2>
-        <p className="text-sm text-gray-500 mb-6">
-          השאר פרטים כדי לקבל גישה מלאה ולשמור את השיחות שלך
+    <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 border border-slate-100">
+        {/* Header */}
+        <div className="flex items-center gap-2 mb-1">
+          <span className="text-[#d97706] text-xl">◈</span>
+          <h2 className="text-xl font-bold text-[#0f172a]">המשך את השיחה</h2>
+        </div>
+        <p className="text-sm text-slate-500 mb-6 mr-7">
+          הירשם חינם כדי לשמור שיחות ולקבל גישה מלאה
         </p>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="text"
             placeholder="שם מלא"
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            style={{ fontSize: "16px" }}
           />
           <input
             type="tel"
             placeholder="טלפון"
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            className="border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            style={{ fontSize: "16px" }}
           />
           <input
             type="email"
             placeholder="אימייל"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="border border-gray-200 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-blue-500"
+            className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#d97706] focus:ring-2 focus:ring-[#d97706]/20 transition-all"
+            style={{ fontSize: "16px" }}
           />
 
-          {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
 
           <button
             type="submit"
             disabled={loading}
-            className="bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-60"
+            className="bg-[#d97706] text-white py-3 rounded-xl font-semibold hover:bg-[#b45309] transition-colors disabled:opacity-60 mt-1 shadow-sm"
           >
-            {loading ? "רושם..." : "המשך"}
+            {loading ? "רושם..." : "המשך בחינם"}
           </button>
         </form>
 
-        <p className="text-xs text-gray-400 mt-4 text-center">
-          הפרטים ישמשו ליצירת קשר בלבד. לא נשלח spam.
+        <p className="text-xs text-slate-400 mt-4 text-center">
+          הפרטים ישמשו ליצירת קשר בלבד · לא נשלח spam
         </p>
       </div>
     </div>

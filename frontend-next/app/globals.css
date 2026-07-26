@@ -1,46 +1,53 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #111111;
-  --sidebar-bg: #f7f7f7;
-  --sidebar-border: #e5e5e5;
-  --user-bubble: #2563eb;
-  --ai-bubble: #f1f1f1;
-  --input-border: #d1d5db;
+  --navy: #0f172a;
+  --navy-mid: #1e293b;
+  --navy-light: #334155;
+  --amber: #d97706;
+  --amber-light: #f59e0b;
+  --amber-pale: #fef3c7;
+  --warm-bg: #fafaf9;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --text-muted: #64748b;
 }
 
-* {
-  box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
-html, body {
-  height: 100%;
-}
+html, body { height: 100%; }
 
 body {
   direction: rtl;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  background: var(--background);
-  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif;
+  background: var(--warm-bg);
+  color: var(--text);
   margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 /* Scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #ccc;
-  border-radius: 2px;
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #475569; border-radius: 2px; }
+
+/* AI message markdown */
+.ai-message p { margin: 0 0 0.5rem 0; line-height: 1.7; }
+.ai-message p:last-child { margin-bottom: 0; }
+.ai-message strong { font-weight: 600; color: var(--navy); }
+.ai-message ul { padding-right: 1.25rem; margin: 0.25rem 0; }
+.ai-message li { margin-bottom: 0.25rem; line-height: 1.6; }
+.ai-message h1, .ai-message h2, .ai-message h3 {
+  font-weight: 600; margin: 0.75rem 0 0.25rem; color: var(--navy);
 }
 
-/* Markdown in AI messages */
-.ai-message p { margin: 0 0 0.5rem 0; }
-.ai-message p:last-child { margin-bottom: 0; }
-.ai-message strong { font-weight: 600; }
-.ai-message ul { padding-right: 1.25rem; margin: 0.25rem 0; }
-.ai-message li { margin-bottom: 0.15rem; }
+/* Topographic SVG bg pattern */
+.topo-bg {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cpath d='M0 50 Q25 20 50 50 Q75 80 100 50' stroke='%23d9770615' fill='none' stroke-width='1'/%3E%3Cpath d='M0 30 Q25 0 50 30 Q75 60 100 30' stroke='%23d9770610' fill='none' stroke-width='1'/%3E%3Cpath d='M0 70 Q25 40 50 70 Q75 100 100 70' stroke='%23d9770610' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+}
+
+/* Pulse animation for typing */
+@keyframes pulse-dot {
+  0%, 80%, 100% { transform: scale(0.7); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+}
