@@ -1,6 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from .clients.iplan_client import get_plans_by_centroid
 from .clients.govmap_client import get_parcel_geometry
 from .cache.redis_cache import get_cached, set_cached
@@ -11,6 +15,9 @@ from .routers import leads as leads_router
 from .db import init_db
 from .models import lead_model  # noqa: F401 — registers ORM model with Base
 
+limiter = Limiter(key_func=get_remote_address)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
@@ -19,18 +26,26 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="karka-ai API", version="0.1.0", lifespan=lifespan)
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=[
+        "https://karka-ai.co.il",
+        "https://www.karka-ai.co.il",
+        "https://karka-ai.pages.dev",  # Cloudflare Pages preview
+    ],
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type"],
 )
 
 app.include_router(leads_router.router)
 
 
 @app.get("/api/parcel", response_model=ParcelFullData)
-async def get_parcel(gush: int, helka: int):
+@limiter.limit("30/minute")
+async def get_parcel(request: Request, gush: int, helka: int):
     cache_key = f"parcel:{gush}:{helka}"
 
     cached = await get_cached(cache_key)
@@ -58,7 +73,8 @@ async def get_parcel(gush: int, helka: int):
 
 
 @app.post("/api/ask", response_model=AskResponse)
-async def ask_about_parcel(req: AskRequest):
+@limiter.limit("10/minute")
+async def ask_about_parcel(request: Request, req: AskRequest):
     cache_key = f"parcel:{req.gush}:{req.helka}"
     cached = await get_cached(cache_key)
 
