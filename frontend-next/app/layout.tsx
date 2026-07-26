@@ -3,9 +3,8 @@ import "./globals.css";
 import { UserProvider } from "@/context/UserContext";
 
 export const metadata: Metadata = {
-  title: "karka-ai — מה מסתתר מאחורי הקרקע שלך?",
-  description: "שאל כל שאלה על קרקעות, תכניות בנייה וייעוד בישראל. AI מקצועי שמסביר בשפה פשוטה.",
-  icons: { icon: "/favicon.ico" },
+  title: "karkAi — AI לניתוח קרקעות בישראל",
+  description: "שאל כל שאלה על ייעוד, תכניות בנייה, וזכויות קרקע בישראל. AI שמבין קרקעות ועונה בשפה פשוטה.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

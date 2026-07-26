@@ -1,11 +1,10 @@
 interface Props {
   size?: "sm" | "md" | "lg";
-  dark?: boolean; // true = white text (for dark bg), false = dark text
 }
 
-export default function KarkaLogo({ size = "md", dark = true }: Props) {
+export default function KarkaLogo({ size = "md" }: Props) {
   const textSize = size === "sm" ? "text-lg" : size === "lg" ? "text-4xl" : "text-2xl";
-  const base = dark ? "text-white" : "text-[#0d1829]";
+  const base = "text-white";
 
   return (
     <span className={`font-bold tracking-tight ${textSize} ${base} select-none`}>

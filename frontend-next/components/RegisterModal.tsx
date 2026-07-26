@@ -6,7 +6,6 @@ import { User } from "@/lib/types";
 
 interface Props {
   onSuccess: (user: User) => void;
-  onClose?: () => void;
 }
 
 export default function RegisterModal({ onSuccess }: Props) {

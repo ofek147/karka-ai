@@ -17,7 +17,4 @@ export interface User {
   email: string;
 }
 
-export interface AuthState {
-  user: User | null;
-  guestCount: number; // messages used as guest (max 3)
-}
+
