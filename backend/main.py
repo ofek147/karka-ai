@@ -75,34 +75,37 @@ async def get_parcel(request: Request, gush: int, helka: int):
 @app.post("/api/ask", response_model=AskResponse)
 @limiter.limit("10/minute")
 async def ask_about_parcel(request: Request, req: AskRequest):
-    cache_key = f"parcel:{req.gush}:{req.helka}"
-    cached = await get_cached(cache_key)
+    try:
+        cache_key = f"parcel:{req.gush}:{req.helka}"
+        cached = await get_cached(cache_key)
 
-    if cached:
-        cached["source"] = "cache"
-        parcel_data = ParcelFullData(**cached)
-    else:
-        geometry = await get_parcel_geometry(req.gush, req.helka)
-        plans = []
-        if geometry.centroid_x and geometry.centroid_y:
-            plans = await get_plans_by_centroid(geometry.centroid_x, geometry.centroid_y)
-        source = "mock" if (settings.mock_mode or not settings.govmap_token) else "live"
-        parcel_data = ParcelFullData(
-            gush=req.gush, helka=req.helka,
-            geometry=geometry, plans=plans,
-            source=source,
+        if cached:
+            cached["source"] = "cache"
+            parcel_data = ParcelFullData(**cached)
+        else:
+            geometry = await get_parcel_geometry(req.gush, req.helka)
+            plans = []
+            if geometry.centroid_x and geometry.centroid_y:
+                plans = await get_plans_by_centroid(geometry.centroid_x, geometry.centroid_y)
+            source = "mock" if (settings.mock_mode or not settings.govmap_token) else "live"
+            parcel_data = ParcelFullData(
+                gush=req.gush, helka=req.helka,
+                geometry=geometry, plans=plans,
+                source=source,
+            )
+            await set_cached(cache_key, parcel_data.model_dump())
+
+        answer = await ask_claude(req.gush, req.helka, parcel_data, req.question)
+
+        return AskResponse(
+            gush=req.gush,
+            helka=req.helka,
+            question=req.question,
+            answer=answer,
+            source=parcel_data.source,
         )
-        await set_cached(cache_key, parcel_data.model_dump())
-
-    answer = await ask_claude(req.gush, req.helka, parcel_data, req.question)
-
-    return AskResponse(
-        gush=req.gush,
-        helka=req.helka,
-        question=req.question,
-        answer=answer,
-        source=parcel_data.source,
-    )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")
