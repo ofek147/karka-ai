@@ -10,9 +10,10 @@ type LoginStep = "phone" | "code" | "email" | "email-sent";
 
 interface Props {
   onSuccess: (user: User) => void;
+  onClose?: () => void;
 }
 
-export default function RegisterModal({ onSuccess }: Props) {
+export default function RegisterModal({ onSuccess, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("register");
   const [loginStep, setLoginStep] = useState<LoginStep>("phone");
 
@@ -92,7 +93,7 @@ export default function RegisterModal({ onSuccess }: Props) {
         {/* Header */}
         <div className="bg-[#0d1829] px-6 py-5 flex items-center gap-3">
           <KarkaIcon size={32} />
-          <div>
+          <div className="flex-1">
             <h2 className="text-white font-bold text-lg leading-tight">
               {mode === "register" ? "המשך את השיחה" : "כניסה ל-karkAi"}
             </h2>
@@ -100,6 +101,9 @@ export default function RegisterModal({ onSuccess }: Props) {
               {mode === "register" ? "הירשם חינם לשמירת שיחות" : "שלח קוד לטלפון שנרשמת איתו"}
             </p>
           </div>
+          {onClose && (
+            <button onClick={onClose} className="text-slate-500 hover:text-slate-300 transition-colors text-xl leading-none">×</button>
+          )}
         </div>
 
         {/* Tab switch */}
