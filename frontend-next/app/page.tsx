@@ -8,9 +8,13 @@ const EXAMPLE_QUESTIONS = [
   "מה זה ייעוד 'עירוני מעורב' ומה אפשר לעשות בו?",
 ];
 
+function encodeQ(q: string) {
+  return "/chat?q=" + encodeURIComponent(q);
+}
+
 export default function Home() {
   return (
-    <main className="min-h-screen flex flex-col overflow-y-auto bg-[#0a0f1a]" dir="rtl">
+    <main className="min-h-screen flex flex-col overflow-y-auto bg-[#0d1829]" dir="rtl">
 
       {/* Header */}
       <header className="relative z-20 px-6 py-4 flex items-center justify-between">
@@ -33,8 +37,7 @@ export default function Home() {
           className="absolute inset-0 bg-cover bg-center bg-no-repeat"
           style={{ backgroundImage: "url('/hero.jpg')" }}
         />
-        {/* Dark overlay — gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-[#0a0f1a]/80 via-[#0a0f1a]/60 to-[#0a0f1a]" />
+        <div className="absolute inset-0 bg-gradient-to-b from-[#0d1829]/80 via-[#0d1829]/60 to-[#0d1829]" />
 
         {/* Content */}
         <div className="relative z-10 max-w-2xl mx-auto text-center">
@@ -53,7 +56,7 @@ export default function Home() {
           </h1>
 
           <p className="text-lg text-slate-300 mb-10 leading-relaxed max-w-lg mx-auto">
-            שאל בעברית חופשית על ייעוד, תכניות בנייה, זכויות, ותהליכי אישור.
+            כל שאלה על ייעוד, תכניות בנייה, זכויות, ותהליכי אישור.
             <br />
             AI שמבין קרקעות ישראליות — ועונה בשפה פשוטה.
           </p>
@@ -82,7 +85,7 @@ export default function Home() {
             {EXAMPLE_QUESTIONS.map((q) => (
               <Link
                 key={q}
-                href="/chat"
+                href={encodeQ(q)}
                 className="group flex items-start gap-3 px-4 py-4 rounded-xl border border-white/8 bg-white/3 hover:bg-white/6 hover:border-white/15 transition-all cursor-pointer"
               >
                 <span className="mt-0.5 text-sm shrink-0" style={{ color: "#c4a044" }}>◈</span>
@@ -117,7 +120,7 @@ export default function Home() {
           ].map((f) => (
             <div
               key={f.title}
-              className="rounded-2xl p-6 border border-white/8 bg-white/3"
+              className="rounded-2xl p-6 border border-white/8 bg-white/3 text-center"
             >
               <span className="text-2xl mb-3 block">{f.icon}</span>
               <h3 className="font-semibold text-white mb-2">{f.title}</h3>
@@ -128,7 +131,7 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="px-6 py-14 text-center border-t border-white/8 bg-[#0d1320]">
+      <section className="px-6 py-14 text-center border-t border-white/8 bg-[#0a1220]">
         <h2 className="text-2xl font-bold text-white mb-2">מוכן להבין את הקרקע שלך?</h2>
         <p className="text-slate-400 text-sm mb-6">הצטרף — חינם, ללא כרטיס אשראי</p>
         <Link
