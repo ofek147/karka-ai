@@ -2,7 +2,6 @@
 import Link from "next/link";
 import { useUser } from "@/context/UserContext";
 import KarkaLogo from "@/components/KarkaLogo";
-import KarkaIcon from "@/components/KarkaIcon";
 
 export default function ChatTopbar() {
   const { user, setShowRegister, setSidebarOpen } = useUser();
@@ -19,10 +18,7 @@ export default function ChatTopbar() {
             ☰
           </button>
         )}
-        <Link href="/" className="flex items-center gap-2">
-          <KarkaIcon size={28} />
-          <KarkaLogo />
-        </Link>
+        <Link href="/"><KarkaLogo /></Link>
       </div>
 
       <div className="flex items-center gap-3">
