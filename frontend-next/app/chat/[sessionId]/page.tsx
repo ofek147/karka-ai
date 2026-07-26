@@ -95,8 +95,8 @@ export default function SessionPage() {
               onKeyDown={handleKeyDown}
               placeholder="שאל כל שאלה על קרקעות בישראל..."
               rows={1}
-              className="flex-1 resize-none border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-blue-400 max-h-32 overflow-y-auto"
-              style={{ direction: "rtl" }}
+              className="flex-1 resize-none border border-gray-200 rounded-xl px-4 py-3 focus:outline-none focus:border-blue-400 max-h-32 overflow-y-auto"
+              style={{ direction: "rtl", fontSize: "16px" }}
             />
             <button
               onClick={handleSend}

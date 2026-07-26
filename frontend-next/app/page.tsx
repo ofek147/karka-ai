@@ -3,7 +3,7 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-white flex flex-col">
+    <main className="min-h-screen bg-white flex flex-col overflow-y-auto">
       {/* Header */}
       <header className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
         <span className="font-bold text-xl text-gray-900">karka-ai</span>
