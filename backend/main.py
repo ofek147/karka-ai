@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from .clients.iplan_client import get_plans_by_centroid
@@ -7,8 +8,16 @@ from .models.parcel import ParcelFullData, AskRequest, AskResponse
 from .services.claude_service import ask_claude
 from .config import settings
 from .routers import leads as leads_router
+from .db import init_db
+from .models import lead_model  # noqa: F401 — registers ORM model with Base
 
-app = FastAPI(title="karka-ai API", version="0.1.0")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
+
+app = FastAPI(title="karka-ai API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

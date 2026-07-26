@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 86400
     mock_mode: bool = True
     anthropic_api_key: str = ""
+    database_url: str = ""  # Railway sets this automatically; empty = SQLite fallback
 
     class Config:
         env_file = ".env"

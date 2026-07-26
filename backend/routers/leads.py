@@ -1,11 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-import csv
-import os
-from datetime import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from ..db import get_db
+from ..models.lead_model import Lead
 
 router = APIRouter()
-LEADS_FILE = "data/leads.csv"
 
 
 class LeadIn(BaseModel):
@@ -15,12 +14,8 @@ class LeadIn(BaseModel):
 
 
 @router.post("/api/register")
-async def register(lead: LeadIn):
-    os.makedirs("data", exist_ok=True)
-    file_exists = os.path.exists(LEADS_FILE)
-    with open(LEADS_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        if not file_exists:
-            writer.writerow(["timestamp", "name", "phone", "email"])
-        writer.writerow([datetime.now().isoformat(), lead.name, lead.phone, lead.email])
+async def register(lead: LeadIn, db: AsyncSession = Depends(get_db)):
+    new_lead = Lead(name=lead.name, phone=lead.phone, email=lead.email)
+    db.add(new_lead)
+    await db.commit()
     return {"status": "ok", "message": "נרשמת בהצלחה!"}
