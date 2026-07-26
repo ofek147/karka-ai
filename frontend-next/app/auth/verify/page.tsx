@@ -20,7 +20,7 @@ function VerifyInner() {
       .then(user => {
         saveUser(user);
         setStatus("success");
-        setTimeout(() => router.push("/chat"), 1500);
+        setTimeout(() => { window.location.href = "/chat"; }, 1500);
       })
       .catch(err => {
         setStatus("error");
