@@ -62,7 +62,7 @@ export default function SessionPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white" dir="rtl">
+    <div className="flex overflow-hidden bg-white" style={{ height: "100dvh" }} dir="rtl">
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/30 z-30 md:hidden" onClick={() => setSidebarOpen(false)} />
       )}

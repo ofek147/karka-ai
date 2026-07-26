@@ -107,7 +107,7 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-white" dir="rtl">
+    <div className="flex overflow-hidden bg-white" style={{ height: "100dvh" }} dir="rtl">
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
