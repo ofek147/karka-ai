@@ -6,7 +6,7 @@ from typing import List, Optional
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db import async_session
+from ..db import SessionLocal as async_session
 from ..models.chat_model import ChatSession, ChatMessage, LeadScore
 from ..services.claude_service import chat_claude
 from ..clients.iplan_client import get_plans_by_centroid
