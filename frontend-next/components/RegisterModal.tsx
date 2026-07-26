@@ -6,7 +6,7 @@ import { User } from "@/lib/types";
 import KarkaIcon from "@/components/KarkaIcon";
 
 type Mode = "register" | "login";
-type LoginStep = "phone" | "code" | "email" | "email-sent";
+type LoginStep = "email" | "email-sent";
 
 interface Props {
   onSuccess: (user: User) => void;
@@ -15,7 +15,7 @@ interface Props {
 
 export default function RegisterModal({ onSuccess, onClose }: Props) {
   const [mode, setMode] = useState<Mode>("register");
-  const [loginStep, setLoginStep] = useState<LoginStep>("phone");
+  const [loginStep, setLoginStep] = useState<LoginStep>("email");
 
   // Register fields
   const [name, setName] = useState("");
@@ -23,8 +23,6 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
   const [email, setEmail] = useState("");
 
   // Login fields
-  const [loginPhone, setLoginPhone] = useState("");
-  const [loginCode, setLoginCode] = useState("");
   const [loginEmail, setLoginEmail] = useState("");
 
   const [loading, setLoading] = useState(false);
@@ -108,7 +106,7 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
               {mode === "register" ? "המשך את השיחה" : "כניסה ל-karkAi"}
             </h2>
             <p className="text-slate-400 text-xs mt-0.5">
-              {mode === "register" ? "הירשם חינם לשמירת שיחות" : "שלח קוד לטלפון שנרשמת איתו"}
+              {mode === "register" ? "הירשם חינם לשמירת שיחות" : "שלח קישור כניסה לאימייל שנרשמת איתו"}
             </p>
           </div>
           {onClose && (
@@ -121,7 +119,7 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
           {(["register", "login"] as Mode[]).map((m) => (
             <button
               key={m}
-              onClick={() => { setMode(m); setLoginStep("phone"); resetError(); }}
+              onClick={() => { setMode(m); setLoginStep("email"); resetError(); }}
               className={`flex-1 py-3 text-sm font-medium transition-colors ${
                 mode === m
                   ? "text-[#c4a044] border-b-2 border-[#c4a044]"
@@ -155,54 +153,6 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
             </form>
           )}
 
-          {/* ── Login: enter phone ── */}
-          {mode === "login" && loginStep === "phone" && (
-            <form onSubmit={handleSendOtp} className="flex flex-col gap-3">
-              <p className="text-sm text-slate-500 mb-1">נשלח קוד 4 ספרות לטלפון שנרשמת איתו</p>
-              <input type="tel" placeholder="מספר טלפון" value={loginPhone} dir="rtl"
-                onChange={e => setLoginPhone(e.target.value)}
-                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base text-right"
-                autoFocus />
-              {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-              <button type="submit" disabled={loading}
-                className="bg-[#c4a044] text-white py-3 rounded-xl font-semibold hover:bg-[#b38c36] transition-colors disabled:opacity-60">
-                {loading ? "שולח..." : "שלח קוד SMS"}
-              </button>
-              <button type="button" onClick={() => { setLoginStep("email"); resetError(); }}
-                className="text-sm text-slate-400 hover:text-[#c4a044] transition-colors text-center py-1">
-                העדיף קישור לאימייל במקום →
-              </button>
-            </form>
-          )}
-
-          {/* ── Login: enter OTP code ── */}
-          {mode === "login" && loginStep === "code" && (
-            <form onSubmit={handleVerifyOtp} className="flex flex-col gap-3">
-              <p className="text-sm text-slate-500 mb-1">
-                שלחנו קוד ל-<span className="font-medium text-slate-700">{loginPhone}</span>
-              </p>
-              <input
-                type="text"
-                inputMode="numeric"
-                placeholder="קוד 4 ספרות"
-                value={loginCode}
-                maxLength={4}
-                onChange={e => setLoginCode(e.target.value.replace(/\D/g, ""))}
-                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base text-center tracking-[0.4em] text-xl font-bold"
-                autoFocus
-              />
-              {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
-              <button type="submit" disabled={loading || loginCode.length !== 4}
-                className="bg-[#c4a044] text-white py-3 rounded-xl font-semibold hover:bg-[#b38c36] transition-colors disabled:opacity-60">
-                {loading ? "מאמת..." : "כניסה"}
-              </button>
-              <button type="button" onClick={() => { setLoginStep("phone"); setLoginCode(""); resetError(); }}
-                className="text-sm text-slate-400 hover:text-slate-600 transition-colors text-center py-1">
-                ← שנה מספר טלפון
-              </button>
-            </form>
-          )}
-
           {/* ── Login: magic link by email ── */}
           {mode === "login" && loginStep === "email" && (
             <form onSubmit={handleMagicLink} className="flex flex-col gap-3">
@@ -216,10 +166,7 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
                 className="bg-[#c4a044] text-white py-3 rounded-xl font-semibold hover:bg-[#b38c36] transition-colors disabled:opacity-60">
                 {loading ? "שולח..." : "שלח קישור לאימייל"}
               </button>
-              <button type="button" onClick={() => { setLoginStep("phone"); resetError(); }}
-                className="text-sm text-slate-400 hover:text-slate-600 transition-colors text-center py-1">
-                ← חזור לקוד SMS
-              </button>
+
             </form>
           )}
 
