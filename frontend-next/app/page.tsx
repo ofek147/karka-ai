@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import KarkaLogo from "@/components/KarkaLogo";
+import { useUser } from "@/context/UserContext";
 
 const EXAMPLE_QUESTIONS = [
   "גוש 6111 חלקה 50 — כמה יחידות דיור אפשר לבנות?",
@@ -14,18 +15,25 @@ function encodeQ(q: string) {
 }
 
 export default function Home() {
+  const { user } = useUser();
   return (
     <main className="min-h-screen flex flex-col overflow-y-auto bg-[#0d1829]" dir="rtl">
 
       {/* Header */}
       <header className="relative z-20 px-6 py-4 flex items-center justify-between">
         <KarkaLogo size="md" />
-        <Link
-          href="/chat?login=true"
-          className="text-sm font-semibold px-5 py-2 rounded-lg text-white border border-white/20 hover:bg-white/10 transition-colors"
-        >
-          כניסה
-        </Link>
+        {user ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-400">שלום, {user.name.split(" ")[0]}</span>
+            <Link href="/chat" className="text-sm font-semibold px-5 py-2 rounded-lg text-white border border-white/20 hover:bg-white/10 transition-colors">
+              לצאט
+            </Link>
+          </div>
+        ) : (
+          <Link href="/chat?login=true" className="text-sm font-semibold px-5 py-2 rounded-lg text-white border border-white/20 hover:bg-white/10 transition-colors">
+            כניסה
+          </Link>
+        )}
       </header>
 
       {/* Hero — תמונת קרקע + overlay */}
