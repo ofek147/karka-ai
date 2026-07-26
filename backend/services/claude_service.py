@@ -1,4 +1,4 @@
-from openai import AsyncOpenAI
+import anthropic
 from ..config import settings
 from ..models.parcel import ParcelFullData
 
@@ -41,15 +41,21 @@ def build_user_prompt(gush: int, helka: int, parcel_data: ParcelFullData, questi
 
 
 async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, question: str) -> str:
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    response = await client.chat.completions.create(
-        model="gpt-4o-mini",
-        max_tokens=512,
-        messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": build_user_prompt(gush, helka, parcel_data, question)}
-        ]
-    )
-
-    return response.choices[0].message.content
+    try:
+        message = await client.messages.create(
+            model="claude-3-5-haiku-20241022",
+            max_tokens=512,
+            system=SYSTEM_PROMPT,
+            messages=[
+                {"role": "user", "content": build_user_prompt(gush, helka, parcel_data, question)}
+            ]
+        )
+        return message.content[0].text
+    except anthropic.APIConnectionError as e:
+        raise RuntimeError(f"Anthropic connection failed: {type(e).__name__}: {e}") from e
+    except anthropic.AuthenticationError as e:
+        raise RuntimeError(f"Anthropic auth failed — check ANTHROPIC_API_KEY: {e}") from e
+    except Exception as e:
+        raise RuntimeError(f"Anthropic error: {type(e).__name__}: {e}") from e
