@@ -21,7 +21,7 @@ export default function Home() {
       <header className="relative z-20 px-6 py-4 flex items-center justify-between">
         <KarkaLogo size="md" />
         <Link
-          href="/chat"
+          href="/chat?login=true"
           className="text-sm font-semibold px-5 py-2 rounded-lg text-white border border-white/20 hover:bg-white/10 transition-colors"
         >
           כניסה

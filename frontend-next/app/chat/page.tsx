@@ -8,14 +8,15 @@ import ChatInput from "@/components/ChatInput";
 import MessageBubble, { TypingIndicator } from "@/components/MessageBubble";
 
 function ChatPageInner() {
-  const { user } = useUser();
+  const { user, setShowRegister } = useUser();
   const searchParams = useSearchParams();
   const { messages, input, setInput, loading, bottomRef, sendMessage, handleKeyDown, guestLeft } = useChat();
 
   useEffect(() => {
     const q = searchParams.get("q");
     if (q) setInput(decodeURIComponent(q));
-  }, [searchParams, setInput]);
+    if (searchParams.get('login') === 'true') setShowRegister(true);
+  }, [searchParams, setInput, setShowRegister]);
 
   return (
     <>

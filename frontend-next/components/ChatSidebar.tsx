@@ -68,6 +68,16 @@ export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isO
         )}
       </div>
 
+      {/* Logout */}
+      <div className="px-3 pb-2">
+        <button
+          onClick={() => { localStorage.clear(); window.location.href = '/'; }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-slate-500 hover:text-red-400 hover:bg-red-400/5 transition-colors"
+        >
+          <span>↩</span> יציאה
+        </button>
+      </div>
+
       {/* Bottom branding */}
       <div className="px-4 py-3 border-t border-white/10">
         <p className="text-xs text-slate-600 text-center">AI לקרקעות ישראל</p>
