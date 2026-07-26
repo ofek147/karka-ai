@@ -1,4 +1,5 @@
 import { Message } from "@/lib/types";
+import KarkaIcon from "@/components/KarkaIcon";
 
 interface Props {
   message: Message;
@@ -33,9 +34,8 @@ export default function MessageBubble({ message }: Props) {
           {formatContent(message.content)}
         </div>
       </div>
-      {/* AI avatar */}
-      <div className="shrink-0 w-7 h-7 rounded-full bg-[#c4a044]/15 border border-[#c4a044]/30 flex items-center justify-center text-[#c4a044] text-xs font-bold mt-0.5">
-        ◈
+      <div className="shrink-0 mt-0.5">
+        <KarkaIcon size={28} />
       </div>
     </div>
   );
@@ -58,8 +58,8 @@ export function TypingIndicator() {
           ))}
         </div>
       </div>
-      <div className="shrink-0 w-7 h-7 rounded-full bg-[#c4a044]/15 border border-[#c4a044]/30 flex items-center justify-center text-[#c4a044] text-xs font-bold mt-0.5">
-        ◈
+      <div className="shrink-0 mt-0.5">
+        <KarkaIcon size={28} />
       </div>
     </div>
   );
