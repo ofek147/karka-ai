@@ -45,7 +45,7 @@ async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, questio
 
     try:
         message = await client.messages.create(
-            model="claude-3-haiku-20240307",
+            model="claude-haiku-4-5",
             max_tokens=512,
             system=SYSTEM_PROMPT,
             messages=[
