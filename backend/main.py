@@ -12,8 +12,10 @@ from .models.parcel import ParcelFullData, AskRequest, AskResponse
 from .services.claude_service import ask_claude
 from .config import settings
 from .routers import leads as leads_router
+from .routers import chat as chat_router
 from .db import init_db
 from .models import lead_model  # noqa: F401 — registers ORM model with Base
+from .models import chat_model  # noqa: F401
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -35,12 +37,15 @@ app.add_middleware(
         "https://karka-ai.co.il",
         "https://www.karka-ai.co.il",
         "https://karka-ai.pages.dev",  # Cloudflare Pages preview
+        "https://karka-ai.vercel.app",
+        "http://localhost:3000",  # local dev
     ],
     allow_methods=["GET", "POST"],
     allow_headers=["Content-Type"],
 )
 
 app.include_router(leads_router.router)
+app.include_router(chat_router.router)
 
 
 @app.get("/api/parcel", response_model=ParcelFullData)
