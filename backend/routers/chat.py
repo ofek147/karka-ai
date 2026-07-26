@@ -143,6 +143,31 @@ async def chat(request: Request, req: ChatRequest):
     return ChatResponse(answer=answer, session_id=session_id)
 
 
+class SaveSessionRequest(BaseModel):
+    user_id: str
+    session_id: str
+    messages: List[MessageItem]
+    title: str
+
+
+@router.post("/api/sessions/save")
+async def save_session(req: SaveSessionRequest):
+    """Save a full conversation (used when guest registers mid-chat)"""
+    async with SessionLocal() as db:
+        result = await db.execute(select(ChatSession).where(ChatSession.id == req.session_id))
+        session = result.scalar_one_or_none()
+        if not session:
+            db.add(ChatSession(
+                id=req.session_id,
+                user_id=req.user_id,
+                title=req.title[:40]
+            ))
+            for msg in req.messages:
+                db.add(ChatMessage(session_id=req.session_id, role=msg.role, content=msg.content))
+            await db.commit()
+    return {"ok": True}
+
+
 @router.get("/api/sessions/{user_id}")
 async def get_sessions(user_id: str):
     async with async_session() as db:

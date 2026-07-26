@@ -44,6 +44,19 @@ export async function getSessions(userId: string): Promise<ChatSession[]> {
   return res.json();
 }
 
+export async function saveSession(
+  userId: string,
+  sessionId: string,
+  messages: Message[],
+  title: string
+): Promise<void> {
+  await fetch(`${API}/api/sessions/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, session_id: sessionId, messages, title }),
+  });
+}
+
 export async function getSessionMessages(sessionId: string): Promise<Message[]> {
   const res = await fetch(`${API}/api/sessions/${sessionId}/messages`);
   if (!res.ok) return [];

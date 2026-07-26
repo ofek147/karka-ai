@@ -2,7 +2,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Message, ChatSession, User } from "@/lib/types";
 import { getUser, getGuestCount, incrementGuestCount, isGuestLimitReached } from "@/lib/auth";
-import { sendChat, getSessions } from "@/lib/api";
+import { sendChat, getSessions, saveSession } from "@/lib/api";
 import ChatSidebar from "@/components/ChatSidebar";
 import MessageBubble, { TypingIndicator } from "@/components/MessageBubble";
 import RegisterModal from "@/components/RegisterModal";
@@ -74,10 +74,8 @@ export default function ChatPage() {
         }
       }
 
-      // Refresh sessions
-      if (user) {
-        getSessions(user.id).then(setSessions);
-      }
+      // Refresh sessions sidebar
+      if (user) getSessions(user.id).then(setSessions);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "שגיאה בשרת";
       setMessages([...newMessages, { role: "assistant", content: `סליחה, הייתה שגיאה: ${errMsg}` }]);
@@ -100,9 +98,15 @@ export default function ChatPage() {
     setSidebarOpen(false);
   }
 
-  function handleRegistered(newUser: User) {
+  async function handleRegistered(newUser: User) {
     setUser(newUser);
     setShowRegister(false);
+    // שמור את השיחה הנוכחית (התחילה כguest)
+    if (messages.length > 1 && sessionId) {
+      const firstUserMsg = messages.find(m => m.role === "user");
+      const title = firstUserMsg?.content.slice(0, 40) || "שיחה חדשה";
+      await saveSession(newUser.id, sessionId, messages, title);
+    }
     getSessions(newUser.id).then(setSessions);
   }
 
