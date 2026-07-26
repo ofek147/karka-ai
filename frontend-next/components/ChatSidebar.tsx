@@ -7,6 +7,7 @@ interface Props {
   currentSessionId?: string;
   onNewChat: () => void;
   isOpen: boolean;
+  onMenuToggle?: () => void;
 }
 
 export default function ChatSidebar({ sessions, currentSessionId, onNewChat, isOpen }: Props) {
