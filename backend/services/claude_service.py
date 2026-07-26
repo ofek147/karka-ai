@@ -1,4 +1,4 @@
-import anthropic
+from openai import AsyncOpenAI
 from ..config import settings
 from ..models.parcel import ParcelFullData
 
@@ -41,16 +41,15 @@ def build_user_prompt(gush: int, helka: int, parcel_data: ParcelFullData, questi
 
 
 async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, question: str) -> str:
-    # AsyncAnthropic — non-blocking in async FastAPI
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = AsyncOpenAI(api_key=settings.openai_api_key)
 
-    message = await client.messages.create(
-        model="claude-3-5-haiku-20241022",
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
         max_tokens=512,
-        system=SYSTEM_PROMPT,
         messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": build_user_prompt(gush, helka, parcel_data, question)}
         ]
     )
 
-    return message.content[0].text
+    return response.choices[0].message.content

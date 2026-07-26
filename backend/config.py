@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     mock_mode: bool = True
     anthropic_api_key: str = ""
     database_url: str = ""  # Railway sets this automatically; empty = SQLite fallback
+    openai_api_key: str = ""
 
     class Config:
         env_file = ".env"
