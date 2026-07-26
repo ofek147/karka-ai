@@ -7,6 +7,7 @@ import { Message } from "@/lib/types";
 
 interface UserContextValue {
   user: User | null;
+  initialized: boolean;
   sessions: ChatSession[];
   showRegister: boolean;
   setShowRegister: (v: boolean) => void;
@@ -21,6 +22,7 @@ const UserContext = createContext<UserContextValue | null>(null);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [initialized, setInitialized] = useState(false);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [showRegister, setShowRegister] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -28,7 +30,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const u = getUser();
     setUser(u);
-    if (u) getSessions(u.id).then(setSessions);
+    if (u) {
+      getSessions(u.id).then(setSessions).finally(() => setInitialized(true));
+    } else {
+      setInitialized(true);
+    }
   }, []);
 
   const refreshSessions = useCallback(() => {
@@ -59,7 +65,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   return (
     <UserContext.Provider value={{
-      user, sessions, showRegister, setShowRegister,
+      user, initialized, sessions, showRegister, setShowRegister,
       sidebarOpen, setSidebarOpen,
       refreshSessions, handleRegistered, register
     }}>
