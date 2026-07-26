@@ -15,7 +15,7 @@ function ChatPageInner() {
   useEffect(() => {
     const q = searchParams.get("q");
     if (q) setInput(decodeURIComponent(q));
-    if (searchParams.get('login') === 'true') setShowRegister(true);
+    if (searchParams.get('login') === 'true' && !user) setShowRegister(true);
   }, [searchParams, setInput, setShowRegister]);
 
   return (
