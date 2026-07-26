@@ -44,7 +44,7 @@ async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, questio
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
 
     message = client.messages.create(
-        model="claude-haiku-4-5",
+        model="claude-3-5-haiku-20241022",
         max_tokens=512,
         system=SYSTEM_PROMPT,
         messages=[
