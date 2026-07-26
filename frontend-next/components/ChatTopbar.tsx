@@ -30,7 +30,7 @@ export default function ChatTopbar() {
             הירשם לשמירת שיחות
           </button>
         ) : (
-          <span className="text-sm text-slate-400 hidden sm:block">שלום, {user.name.split(" ")[0]}</span>
+          <span className="text-sm text-slate-400">שלום, {user.name.split(" ")[0]}</span>
         )}
       </div>
     </header>
