@@ -26,8 +26,10 @@ class Base(DeclarativeBase):
 def get_engine():
     url = _build_url(settings.database_url) if settings.database_url else None
     if not url:
-        # SQLite fallback for local dev without Postgres
-        url = "sqlite+aiosqlite:///./data/karka.db"
+        # SQLite fallback — use /tmp (always writable in containers + local)
+        import os
+        os.makedirs("/tmp/karka", exist_ok=True)
+        url = "sqlite+aiosqlite:////tmp/karka/karka.db"
     return create_async_engine(url, echo=False)
 
 
