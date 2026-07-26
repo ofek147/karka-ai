@@ -53,6 +53,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     currentMessages?: Message[],
     currentSessionId?: string
   ) => {
+    setUser(newUser);
     setShowRegister(false);
     // Save current guest conversation to DB
     if (currentMessages && currentMessages.length > 1 && currentSessionId) {
