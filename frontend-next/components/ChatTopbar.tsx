@@ -30,7 +30,15 @@ export default function ChatTopbar() {
             הירשם לשמירת שיחות
           </button>
         ) : (
-          <span className="text-sm text-slate-400">שלום, {user.name.split(" ")[0]}</span>
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-slate-400 hidden sm:block">שלום, {user.name.split(" ")[0]}</span>
+            <button
+              onClick={() => { localStorage.clear(); window.location.href = "/"; }}
+              className="text-xs text-slate-600 hover:text-slate-400 transition-colors border border-white/10 px-2.5 py-1 rounded-lg"
+            >
+              יציאה
+            </button>
+          </div>
         )}
       </div>
     </header>
