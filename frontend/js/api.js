@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:8000';
+const API_BASE = window.KARKA_API_URL || 'http://localhost:8000';
 
 async function askQuestion(gush, helka, question) {
   const res = await fetch(`${API_BASE}/api/ask`, {
