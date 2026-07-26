@@ -16,7 +16,11 @@ from ..config import settings
 
 router = APIRouter()
 
-GUSH_HELKA_RE = re.compile(r"גוש\s*[:\-]?\s*(\d+)[,\s]+חלקה\s*[:\-]?\s*(\d+)", re.UNICODE)
+GUSH_HELKA_RE = re.compile(
+    r"(?:גוש\s*[:\-]?\s*(\d+)[,\s/]+חלקה\s*[:\-]?\s*(\d+))"
+    r"|(?:gush\s*[:\-]?\s*(\d+)[,\s/]+helka\s*[:\-]?\s*(\d+))",
+    re.UNICODE | re.IGNORECASE
+)
 BUDGET_RE = re.compile(r"תקציב|מיליון|להשקיע|השקעה", re.UNICODE)
 ROI_RE = re.compile(r"תשואה|ROI|רווח|רנטביליות", re.UNICODE)
 
@@ -97,7 +101,9 @@ async def chat(request: Request, req: ChatRequest):
     match = GUSH_HELKA_RE.search(all_text)
     if match:
         try:
-            gush, helka = int(match.group(1)), int(match.group(2))
+            # groups 1,2 = Hebrew; groups 3,4 = English
+            gush = int(match.group(1) or match.group(3))
+            helka = int(match.group(2) or match.group(4))
             geometry = await get_parcel_geometry(gush, helka)
             plans = []
             if geometry.centroid_x and geometry.centroid_y:
