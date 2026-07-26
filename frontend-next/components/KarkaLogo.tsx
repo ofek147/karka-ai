@@ -21,7 +21,7 @@ export default function KarkaLogo({ size = "md", dark = true }: Props) {
       >
         A
       </span>
-      <span style={{ opacity: 0.7 }}>i</span>
+      <span>i</span>
     </span>
   );
 }
