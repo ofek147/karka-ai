@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import SessionLocal as async_session
 from ..models.chat_model import ChatSession, ChatMessage, LeadScore
-from ..services.claude_service import chat_claude
+from ..services.claude_service import chat_claude, generate_title
 from ..clients.iplan_client import get_plans_by_centroid
 from ..clients.govmap_client import get_parcel_geometry
 from ..models.parcel import ParcelFullData
@@ -128,8 +128,8 @@ async def chat(request: Request, req: ChatRequest):
             result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
             session = result.scalar_one_or_none()
             if not session:
-                # Auto-title from first user message
-                title = last_user_msg.content[:40] + ("..." if len(last_user_msg.content) > 40 else "")
+                # Generate smart title from first user message
+                title = await generate_title(last_user_msg.content)
                 db.add(ChatSession(id=session_id, user_id=req.user_id, title=title))
 
             # Save only the latest user message + assistant answer (avoid duplicates)
@@ -157,10 +157,11 @@ async def save_session(req: SaveSessionRequest):
         result = await db.execute(select(ChatSession).where(ChatSession.id == req.session_id))
         session = result.scalar_one_or_none()
         if not session:
+            smart_title = await generate_title(req.title)
             db.add(ChatSession(
                 id=req.session_id,
                 user_id=req.user_id,
-                title=req.title[:40]
+                title=smart_title
             ))
             for msg in req.messages:
                 db.add(ChatMessage(session_id=req.session_id, role=msg.role, content=msg.content))

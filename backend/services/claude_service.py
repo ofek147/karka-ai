@@ -64,6 +64,23 @@ async def chat_claude(messages: List[Dict[str, str]], parcel_context: str = "") 
     return await _call_claude(claude_messages)
 
 
+async def generate_title(first_message: str) -> str:
+    """Generate a short session title from the first user message"""
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    try:
+        response = await client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=20,
+            messages=[{
+                "role": "user",
+                "content": f"תמצת את הנושא הבא ב-3-4 מילים בעברית בלבד, ללא פסיקים, ללא נקודות:\n{first_message[:200]}"
+            }]
+        )
+        return response.content[0].text.strip()[:50]
+    except Exception:
+        return first_message[:40]
+
+
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
