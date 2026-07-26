@@ -32,10 +32,20 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
 
   function resetError() { setError(""); }
 
+  // ── Validation ──────────────────────────────────────────────────────────
+  function validateForm(): string | null {
+    if (!name.trim() || name.trim().length < 2) return "שם חייב להכיל לפחות 2 תווים";
+    const phone_clean = phone.replace(/[-\s]/g, "");
+    if (!/^(\+972|972|0)([23489]|5[02-9]|7[0-9])[0-9]{7}$/.test(phone_clean)) return "מספר טלפון לא תקין — נא להכניס מספר ישראלי";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "כתובת אימייל לא תקינה";
+    return null;
+  }
+
   // ── Register ──────────────────────────────────────────────────────────────
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
-    if (!name || !phone || !email) { setError("נא למלא את כל השדות"); return; }
+    const validErr = validateForm();
+    if (validErr) { setError(validErr); return; }
     setLoading(true); resetError();
     try {
       const user = await registerUser(name, phone, email);
@@ -130,9 +140,9 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
               <input type="text" placeholder="שם מלא" value={name}
                 onChange={e => setName(e.target.value)}
                 className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base" />
-              <input type="tel" placeholder="טלפון" value={phone}
+              <input type="tel" placeholder="טלפון" value={phone} dir="rtl"
                 onChange={e => setPhone(e.target.value)}
-                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base" />
+                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base text-right" />
               <input type="email" placeholder="אימייל" value={email}
                 onChange={e => setEmail(e.target.value)}
                 className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base" />
@@ -149,9 +159,9 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
           {mode === "login" && loginStep === "phone" && (
             <form onSubmit={handleSendOtp} className="flex flex-col gap-3">
               <p className="text-sm text-slate-500 mb-1">נשלח קוד 4 ספרות לטלפון שנרשמת איתו</p>
-              <input type="tel" placeholder="מספר טלפון" value={loginPhone}
+              <input type="tel" placeholder="מספר טלפון" value={loginPhone} dir="rtl"
                 onChange={e => setLoginPhone(e.target.value)}
-                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base"
+                className="border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-[#c4a044] focus:ring-2 focus:ring-[#c4a044]/20 transition-all text-base text-right"
                 autoFocus />
               {error && <p className="text-sm text-red-500 bg-red-50 px-3 py-2 rounded-lg">{error}</p>}
               <button type="submit" disabled={loading}
