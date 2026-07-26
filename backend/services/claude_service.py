@@ -41,9 +41,10 @@ def build_user_prompt(gush: int, helka: int, parcel_data: ParcelFullData, questi
 
 
 async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, question: str) -> str:
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    # AsyncAnthropic — non-blocking in async FastAPI
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
 
-    message = client.messages.create(
+    message = await client.messages.create(
         model="claude-3-5-haiku-20241022",
         max_tokens=512,
         system=SYSTEM_PROMPT,
