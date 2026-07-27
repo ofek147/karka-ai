@@ -28,6 +28,11 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // UTM source from URL
+  const source = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search).get("utm_source") || undefined
+    : undefined;
+
   function resetError() { setError(""); }
 
   // ── Validation ──────────────────────────────────────────────────────────
@@ -46,7 +51,10 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
     if (validErr) { setError(validErr); return; }
     setLoading(true); resetError();
     try {
-      const user = await registerUser(name, phone, email);
+      const guestSessionId = typeof window !== "undefined"
+        ? localStorage.getItem("karka_session_id") || undefined
+        : undefined;
+      const user = await registerUser(name, phone, email, source, guestSessionId);
       saveUser(user);
       onSuccess(user);
     } catch (err: unknown) {

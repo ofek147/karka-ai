@@ -14,6 +14,7 @@ from .config import settings
 from .routers import leads as leads_router
 from .routers import chat as chat_router
 from .routers import auth as auth_router
+from .routers import admin as admin_router
 from .db import init_db
 from .models import lead_model  # noqa: F401 — registers ORM model with Base
 from .models import chat_model  # noqa: F401
@@ -49,6 +50,7 @@ app.add_middleware(
 app.include_router(leads_router.router)
 app.include_router(chat_router.router)
 app.include_router(auth_router.router)
+app.include_router(admin_router.router)
 
 
 @app.get("/api/parcel", response_model=ParcelFullData)

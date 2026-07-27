@@ -37,6 +37,22 @@ async def get_db():
 
 
 async def init_db():
-    """Create all tables on startup."""
+    """Create all tables on startup + migrate existing tables."""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Migrate leads table — add intelligence columns if missing
+        migrations = [
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS score INTEGER DEFAULT 0",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS last_active TIMESTAMPTZ",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS total_questions INTEGER DEFAULT 0",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS total_sessions INTEGER DEFAULT 0",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS source VARCHAR(200)",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS topics JSONB DEFAULT '[]'",
+            "ALTER TABLE leads ADD COLUMN IF NOT EXISTS parcels JSONB DEFAULT '[]'",
+        ]
+        from sqlalchemy import text
+        for sql in migrations:
+            try:
+                await conn.execute(text(sql))
+            except Exception:
+                pass  # Column already exists or DB doesn't support IF NOT EXISTS

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Text, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey
 from uuid import uuid4
 from datetime import datetime
 from ..db import Base
@@ -22,12 +22,3 @@ class ChatMessage(Base):
     role = Column(String)  # "user" | "assistant"
     content = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
-
-
-class LeadScore(Base):
-    __tablename__ = "lead_scores"
-
-    user_id = Column(String, primary_key=True)
-    score = Column(Integer, default=0)
-    signals = Column(JSON, default=dict)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

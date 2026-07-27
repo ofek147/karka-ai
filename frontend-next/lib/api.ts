@@ -22,12 +22,14 @@ export async function sendChat(
 export async function registerUser(
   name: string,
   phone: string,
-  email: string
+  email: string,
+  source?: string,
+  guestSessionId?: string,
 ): Promise<User> {
   const res = await fetch(`${API}/api/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, phone, email }),
+    body: JSON.stringify({ name, phone, email, source, guest_session_id: guestSessionId }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
