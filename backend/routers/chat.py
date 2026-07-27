@@ -131,6 +131,7 @@ async def chat(request: Request, req: ChatRequest):
                 # Generate smart title from first user message
                 title = await generate_title(last_user_msg.content)
                 db.add(ChatSession(id=session_id, user_id=req.user_id, title=title))
+                await db.flush()  # ensure session exists before inserting messages
 
             # Save only the latest user message + assistant answer (avoid duplicates)
             db.add(ChatMessage(session_id=session_id, role="user", content=last_user_msg.content))
