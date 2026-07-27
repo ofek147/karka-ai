@@ -11,12 +11,10 @@ from sqlalchemy import select, delete
 from ..db import SessionLocal as async_session
 from ..models.auth_model import OtpCode
 from ..models.lead_model import Lead
-from ..services.sms_service import send_otp_sms
 from ..services.email_service import send_magic_link
 
 router = APIRouter()
 
-OTP_TTL_MINUTES = 10
 MAGIC_TTL_MINUTES = 30
 
 
