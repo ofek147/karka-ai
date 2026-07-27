@@ -10,11 +10,12 @@ export async function sendChat(
   const res = await fetch(`${API}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ messages, session_id: sessionId, user_id: userId }),
+    body: JSON.stringify({ messages, session_id: sessionId, user_id: userId != null ? String(userId) : null }),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || "שגיאה בשרת");
+    const detail = typeof err.detail === "string" ? err.detail : JSON.stringify(err.detail);
+    throw new Error(detail || "שגיאה בשרת");
   }
   return res.json();
 }

@@ -65,4 +65,4 @@ async def register(lead: LeadIn, db: AsyncSession = Depends(get_db)):
         )
         await db.commit()
 
-    return {"status": "ok", "id": new_lead.id, "name": new_lead.name, "email": str(lead.email)}
+    return {"status": "ok", "id": str(new_lead.id), "name": new_lead.name, "email": str(lead.email)}
