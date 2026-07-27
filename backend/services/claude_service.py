@@ -82,7 +82,7 @@ async def generate_title(first_message: str) -> str:
 
 
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=25.0)
 
     try:
         response = await client.messages.create(
@@ -92,9 +92,11 @@ async def _call_claude(messages: List[Dict[str, str]]) -> str:
             messages=messages
         )
         return response.content[0].text
+    except anthropic.APITimeoutError:
+        raise RuntimeError("timeout")
     except anthropic.APIConnectionError as e:
-        raise RuntimeError(f"Anthropic connection failed: {type(e).__name__}: {e}") from e
-    except anthropic.AuthenticationError as e:
-        raise RuntimeError("Anthropic auth failed — check ANTHROPIC_API_KEY") from e
+        raise RuntimeError(f"connection error: {type(e).__name__}") from e
+    except anthropic.AuthenticationError:
+        raise RuntimeError("auth failed")
     except Exception as e:
-        raise RuntimeError(f"Anthropic error: {type(e).__name__}: {e}") from e
+        raise RuntimeError(f"error: {type(e).__name__}: {e}") from e

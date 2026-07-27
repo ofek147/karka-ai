@@ -47,24 +47,30 @@ export function useChat(options: UseChatOptions = {}) {
     setInput("");
     setLoading(true);
 
-    try {
-      const { answer, session_id } = await sendChat(newMessages, sessionId, user?.id);
-      setSessionId(session_id);
-      setMessages([...newMessages, { role: "assistant", content: answer }]);
-
-      // Guest counter
-      if (!user) {
-        const count = incrementGuestCount();
-        if (count >= 3) setTimeout(() => setShowRegister(true), 800);
+    const tryChat = async (attempt: number) => {
+      try {
+        const { answer, session_id } = await sendChat(newMessages, sessionId, user?.id);
+        setSessionId(session_id);
+        setMessages([...newMessages, { role: "assistant", content: answer }]);
+        if (!user) {
+          const count = incrementGuestCount();
+          if (count >= 3) setTimeout(() => setShowRegister(true), 800);
+        }
+        refreshSessions();
+      } catch (err: unknown) {
+        const raw = err instanceof Error ? err.message : "";
+        const isNetwork = raw === "Load failed" || raw === "Failed to fetch";
+        if (isNetwork && attempt === 1) {
+          await new Promise(r => setTimeout(r, 1500));
+          return tryChat(2);
+        }
+        const msg = isNetwork ? "בעיית חיבור — נסה שוב" : (raw || "שגיאה בשרת");
+        setMessages([...newMessages, { role: "assistant", content: `סליחה, הייתה שגיאה: ${msg}` }]);
+      } finally {
+        setLoading(false);
       }
-
-      refreshSessions();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "שגיאה בשרת";
-      setMessages([...newMessages, { role: "assistant", content: `סליחה, הייתה שגיאה: ${msg}` }]);
-    } finally {
-      setLoading(false);
-    }
+    };
+    tryChat(1);
   }, [input, loading, messages, sessionId, user, refreshSessions, setShowRegister]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
