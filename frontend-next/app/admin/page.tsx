@@ -34,7 +34,7 @@ function AdminInner() {
   const urlToken = searchParams.get("token");
 
   const [session, setSession] = useState<string>(() =>
-    typeof window !== "undefined" ? sessionStorage.getItem("admin_session") || "" : ""
+    typeof window !== "undefined" ? localStorage.getItem("admin_session") || "" : ""
   );
   const [step, setStep] = useState<"email" | "sent" | "dashboard">("email");
   const [emailInput, setEmailInput] = useState("");
@@ -51,7 +51,7 @@ function AdminInner() {
       .then(r => r.json())
       .then(data => {
         if (data.session) {
-          sessionStorage.setItem("admin_session", data.session);
+          localStorage.setItem("admin_session", data.session);
           setSession(data.session);
           setStep("dashboard");
           window.history.replaceState({}, "", "/admin");
@@ -80,7 +80,7 @@ function AdminInner() {
       headers: { Authorization: `Bearer ${tok}` },
     });
     if (res.status === 401) {
-      sessionStorage.removeItem("admin_session");
+      localStorage.removeItem("admin_session");
       setSession("");
       setStep("email");
       setError("הסשן פג — נא להתחבר מחדש");
@@ -126,7 +126,7 @@ function AdminInner() {
   }
 
   function logout() {
-    sessionStorage.removeItem("admin_session");
+    localStorage.removeItem("admin_session");
     setSession("");
     setStep("email");
     setLeads([]);
