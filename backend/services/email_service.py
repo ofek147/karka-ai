@@ -41,7 +41,8 @@ async def send_magic_link(email: str, token: str) -> bool:
                 timeout=10,
             )
             r.raise_for_status()
+            logger.info(f"[EMAIL OK] Sent to {email} | status={r.status_code} | id={r.json().get('id')}")
         return True
     except Exception as e:
-        logger.error(f"Email send failed: {e}")
+        logger.error(f"[EMAIL FAIL] to={email} error={e}")
         return False
