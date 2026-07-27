@@ -56,7 +56,7 @@ export async function saveSession(
   await fetch(`${API}/api/sessions/save`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ user_id: userId, session_id: sessionId, messages, title }),
+    body: JSON.stringify({ user_id: String(userId), session_id: sessionId, messages, title }),
   });
 }
 
