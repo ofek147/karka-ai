@@ -40,9 +40,9 @@ async def send_magic_link(email: str, token: str) -> bool:
                 headers={"Authorization": f"Bearer {settings.resend_api_key}"},
                 timeout=10,
             )
+            logger.warning(f"[EMAIL] status={r.status_code} body={r.text[:200]}")
             r.raise_for_status()
-            logger.info(f"[EMAIL OK] Sent to {email} | status={r.status_code} | id={r.json().get('id')}")
         return True
     except Exception as e:
-        logger.error(f"[EMAIL FAIL] to={email} error={e}")
+        logger.warning(f"[EMAIL FAIL] to={email} error={e}")
         return False
