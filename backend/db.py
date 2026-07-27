@@ -1,8 +1,6 @@
 """
 Database engine + session factory (async SQLAlchemy + asyncpg).
-
-Railway provides DATABASE_URL automatically when Postgres addon is added.
-Local dev: set DATABASE_URL in .env, or leave empty to use SQLite fallback.
+DATABASE_URL is required — set it in Railway environment variables.
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
@@ -24,13 +22,9 @@ class Base(DeclarativeBase):
 
 
 def get_engine():
-    url = _build_url(settings.database_url) if settings.database_url else None
-    if not url:
-        # SQLite fallback — use /tmp (always writable in containers + local)
-        import os
-        os.makedirs("/tmp/karka", exist_ok=True)
-        url = "sqlite+aiosqlite:////tmp/karka/karka.db"
-    return create_async_engine(url, echo=False)
+    if not settings.database_url:
+        raise RuntimeError("DATABASE_URL is required. Set it in Railway environment variables.")
+    return create_async_engine(_build_url(settings.database_url), echo=False)
 
 
 engine = get_engine()

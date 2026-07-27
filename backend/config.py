@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     cache_ttl_seconds: int = 86400
     mock_mode: bool = True
     anthropic_api_key: str = ""
-    database_url: str = ""  # Railway sets this automatically; empty = SQLite fallback
+    database_url: str = ""  # Required — set DATABASE_URL in Railway environment variables
     openai_api_key: str = ""
     resend_api_key: str = ""
     frontend_url: str = "https://karka-ai.co.il"
