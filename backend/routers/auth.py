@@ -1,8 +1,6 @@
 """
 Auth router — phone OTP + email magic link login for returning users.
 """
-import random
-import string
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -114,7 +112,7 @@ async def request_magic(req: MagicRequest):
         result = await db.execute(select(Lead).where(Lead.email == email))
         lead = result.scalars().first()
         if not lead:
-            return {"ok": True}  # Don't reveal existence
+            return {"ok": False, "reason": "not_registered"}
 
         # Delete old magic links for this email
         await db.execute(delete(OtpCode).where(OtpCode.identifier == email, OtpCode.kind == "email"))

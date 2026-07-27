@@ -10,10 +10,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     database_url: str = ""  # Railway sets this automatically; empty = SQLite fallback
     openai_api_key: str = ""
-    twilio_account_sid: str = ""
-    twilio_auth_token: str = ""
-    twilio_from_phone: str = ""
     resend_api_key: str = ""
+    frontend_url: str = "https://karka-ai.co.il"
 
     class Config:
         env_file = ".env"

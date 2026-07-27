@@ -1,17 +1,15 @@
 """
-Email service — Resend.com by default.
-If RESEND_API_KEY not set, logs magic link to console.
+Email service — Resend.com.
+If RESEND_API_KEY not set, logs magic link to console (dev mode).
 """
 import logging
 from ..config import settings
 
 logger = logging.getLogger(__name__)
 
-FRONTEND_URL = "https://karka-ai.co.il"
-
 
 async def send_magic_link(email: str, token: str) -> bool:
-    link = f"{FRONTEND_URL}/auth/verify?token={token}"
+    link = f"{settings.frontend_url}/auth/verify?token={token}"
 
     if not settings.resend_api_key:
         logger.warning(f"[EMAIL DEV MODE] Magic link for {email}: {link}")
@@ -40,9 +38,8 @@ async def send_magic_link(email: str, token: str) -> bool:
                 headers={"Authorization": f"Bearer {settings.resend_api_key}"},
                 timeout=10,
             )
-            logger.warning(f"[EMAIL] status={r.status_code} body={r.text[:200]}")
             r.raise_for_status()
         return True
     except Exception as e:
-        logger.warning(f"[EMAIL FAIL] to={email} error={e}")
+        logger.error(f"Email send failed to {email}: {e}")
         return False

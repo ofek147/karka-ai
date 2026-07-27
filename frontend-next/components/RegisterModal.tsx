@@ -60,8 +60,12 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
     if (!loginEmail) { setError("נא להכניס אימייל"); return; }
     setLoading(true); resetError();
     try {
-      await requestMagicLink(loginEmail);
-      setLoginStep("email-sent");
+      const res = await requestMagicLink(loginEmail);
+      if (res.reason === "not_registered") {
+        setError("המייל הזה לא רשום — עבור ל\"משתמש חדש\" כדי להירשם");
+      } else {
+        setLoginStep("email-sent");
+      }
     } catch {
       setError("שגיאה בשליחת הקישור");
     } finally { setLoading(false); }

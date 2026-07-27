@@ -32,7 +32,7 @@ Thumbs.db
 *.swp
 
 # Data / Cache
-data/cache/
+data/
 *.sqlite
 *.db
 knowledge-base/raw/
