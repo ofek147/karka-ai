@@ -20,7 +20,7 @@ async def send_magic_link(email: str, token: str) -> bool:
     try:
         import httpx
         payload = {
-            "from": "karkAi <onboarding@resend.dev>",
+            "from": "karkAi <noreply@karka-ai.co.il>",
             "to": [email],
             "subject": "הקישור לכניסה שלך ל-karkAi",
             "html": f"""
