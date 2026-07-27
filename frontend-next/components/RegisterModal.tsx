@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { registerUser, requestOtp, verifyOtp, requestMagicLink } from "@/lib/api";
+import { registerUser, requestMagicLink } from "@/lib/api";
 import { saveUser } from "@/lib/auth";
 import { User } from "@/lib/types";
 import KarkaIcon from "@/components/KarkaIcon";
@@ -51,33 +51,6 @@ export default function RegisterModal({ onSuccess, onClose }: Props) {
       onSuccess(user);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "שגיאה ברישום");
-    } finally { setLoading(false); }
-  }
-
-  // ── Login: send OTP ───────────────────────────────────────────────────────
-  async function handleSendOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (!loginPhone) { setError("נא להכניס מספר טלפון"); return; }
-    setLoading(true); resetError();
-    try {
-      await requestOtp(loginPhone);
-      setLoginStep("code");
-    } catch {
-      setError("שגיאה בשליחת הקוד");
-    } finally { setLoading(false); }
-  }
-
-  // ── Login: verify OTP ─────────────────────────────────────────────────────
-  async function handleVerifyOtp(e: React.FormEvent) {
-    e.preventDefault();
-    if (loginCode.length !== 4) { setError("הכנס 4 ספרות"); return; }
-    setLoading(true); resetError();
-    try {
-      const user = await verifyOtp(loginPhone, loginCode);
-      saveUser(user);
-      onSuccess(user);
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "קוד שגוי");
     } finally { setLoading(false); }
   }
 
