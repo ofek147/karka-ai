@@ -12,7 +12,8 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     resend_api_key: str = ""
     frontend_url: str = "https://karka-ai.co.il"
-    admin_token: str = ""  # Required — set ADMIN_TOKEN in Railway env vars
+    admin_email: str = ""    # Approved admin email — set ADMIN_EMAIL in Railway
+    admin_secret: str = ""   # Auto-generated session secret — set ADMIN_SECRET in Railway
 
     class Config:
         env_file = ".env"
