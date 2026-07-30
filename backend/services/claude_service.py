@@ -25,54 +25,49 @@ SYSTEM_PROMPT = """אתה סוכן AI מקצועי של karka-ai — פלטפו�
 ⚠️ המידע מוצג לצרכי לימוד בלבד ואינו מהווה ייעוץ משפטי, תכנוני, או השקעתי."""
 
 
-def build_parcel_context(
-    gush: int,
-    helka: int,
-    parcel_data: ParcelFullData,
-    land_use: list = None,
-    taba: list = None,
-    is_agricultural: bool = False,
-) -> str:
-    plans_text = ""
-    if parcel_data.plans:
-        plans_list = []
-        for p in parcel_data.plans[:5]:
-            status = f" ({p.station_desc})" if p.station_desc else ""
-            plans_list.append(f"- {p.mavat_name}: {p.pl_name or 'ללא שם'}{status}")
-        plans_text = "\n".join(plans_list)
-    else:
-        plans_text = "לא נמצאו תכניות בניה רשומות"
+def build_parcel_context(gush: int, helka: int, parcel_data: ParcelFullData) -> str:
+    """Build context string for Claude from parcel data."""
+    lines = [f"[נתוני חלקה — גוש {gush}, חלקה {helka}]"]
 
-    area = ""
-    if parcel_data.geometry and parcel_data.geometry.area_sqm:
-        area = f"\nשטח החלקה: {parcel_data.geometry.area_sqm:.0f} מ\"ר"
-
-    # Land use section
-    land_use_text = ""
-    if land_use:
-        lu = land_use[0] if land_use else {}
-        # Try common field keys for ייעוד
-        yu = lu.get("ייעוד") or lu.get("land_use") or lu.get("use_type") or ""
-        if yu:
-            land_use_text = f"\nייעוד קרקע: {yu}"
-
-    # Taba section
-    taba_text = ""
-    if taba:
-        taba_names = []
-        for t in taba[:3]:
-            name = t.get("plan_name") or t.get("תכנית") or t.get("mavat_name") or ""
-            if name:
-                taba_names.append(name)
-        if taba_names:
-            taba_text = f"\nתב\"עות רלוונטיות: {', '.join(taba_names)}"
+    # Area + status
+    if parcel_data.geometry:
+        geo = parcel_data.geometry
+        if geo.area_sqm:
+            lines.append(f'שטח רשום: {geo.area_sqm:.0f} מ"ר')
 
     # Agricultural flag
-    agri_text = "\nסוג חלקה: חקלאית" if is_agricultural else ""
+    if parcel_data.is_agricultural:
+        lines.append("סוג: קרקע חקלאית")
 
-    return f"""[נתוני חלקה אוטומטיים — גוש {gush}, חלקה {helka}{area}{land_use_text}{taba_text}{agri_text}]
-תכניות בניה:
-{plans_text}"""
+    # Land use
+    if parcel_data.land_use:
+        lu = parcel_data.land_use[0]
+        yu = lu.get("ייעוד") or lu.get("land_use") or lu.get("use_type") or ""
+        if yu:
+            lines.append(f"ייעוד קרקע: {yu}")
+
+    # Taba
+    if parcel_data.taba:
+        names = []
+        for t in parcel_data.taba[:3]:
+            n = t.get("plan_name") or t.get("תכנית") or t.get("mavat_name") or ""
+            if n:
+                names.append(n)
+        if names:
+            lines.append(f'תב"עות: {", ".join(names)}')
+
+    # iplan plans
+    if parcel_data.plans:
+        plan_lines = []
+        for p in parcel_data.plans[:5]:
+            status = f" ({p.station_desc})" if p.station_desc else ""
+            plan_lines.append(f"  - {p.mavat_name}: {p.pl_name or 'ללא שם'}{status}")
+        lines.append("תכניות בניה:")
+        lines.extend(plan_lines)
+    else:
+        lines.append("תכניות בניה: לא נמצאו")
+
+    return "\n".join(lines)
 
 
 async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, question: str) -> str:

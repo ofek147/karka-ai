@@ -1,6 +1,9 @@
 """
 Auth router — phone OTP + email magic link login for returning users.
 """
+import random
+import string
+import logging
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
@@ -13,9 +16,11 @@ from ..models.auth_model import OtpCode
 from ..models.lead_model import Lead
 from ..services.email_service import send_magic_link
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 MAGIC_TTL_MINUTES = 30
+OTP_TTL_MINUTES = MAGIC_TTL_MINUTES  # reuse same TTL for SMS OTP
 
 
 def _now() -> datetime:
@@ -55,7 +60,8 @@ async def request_otp(req: OtpRequest):
         db.add(OtpCode(id=str(uuid4()), identifier=phone, code=code, kind="sms", expires_at=expires))
         await db.commit()
 
-    await send_otp_sms(req.phone, code)
+    # SMS sending not yet implemented — log code for debugging only
+    logger.info("[auth] OTP for %s: %s (SMS delivery not configured)", phone[-4:], code)
     return {"ok": True}
 
 

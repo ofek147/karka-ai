@@ -25,6 +25,9 @@ class ParcelFullData(BaseModel):
     geometry: Optional[ParcelGovmap] = None
     plans: List[PlanInfo] = []
     source: str  # "live" | "mock" | "cache"
+    land_use: list = []
+    taba: list = []
+    is_agricultural: bool = False
 
 
 class AskRequest(BaseModel):

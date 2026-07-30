@@ -10,11 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db import SessionLocal as async_session
 from ..models.chat_model import ChatSession, ChatMessage
 from ..models.lead_model import Lead
-from ..services.claude_service import chat_claude, generate_title
-from ..clients.iplan_client import get_plans_by_centroid
-from ..clients.govmap_client import get_parcel_geometry, get_full_parcel_info
-from ..models.parcel import ParcelFullData
-from ..config import settings
+from ..services.claude_service import chat_claude, generate_title, build_parcel_context
+from ..services.parcel_service import get_parcel_data
+from ..cache.parcel_cache import get_parcel_cached, set_parcel_cached
 
 router = APIRouter()
 
@@ -158,7 +156,7 @@ async def chat(request: Request, req: ChatRequest):
     if not last_user_msg:
         raise HTTPException(status_code=400, detail="no user message found")
 
-    # Extract parcel context from messages
+    # ── Parcel context ─────────────────────────────────────────────────────────────────────────────
     parcel_context = ""
     all_user_text = " ".join(m.content for m in req.messages if m.role == "user")
     match = GUSH_HELKA_RE.search(all_user_text)
@@ -166,45 +164,48 @@ async def chat(request: Request, req: ChatRequest):
         try:
             gush = int(match.group(1) or match.group(3))
             helka = int(match.group(2) or match.group(4))
-            full_info = await get_full_parcel_info(gush, helka)
-            geometry = full_info["parcel"]
-            plans = []
-            if geometry.centroid_x is not None and geometry.centroid_y is not None:
-                plans = await get_plans_by_centroid(geometry.centroid_x, geometry.centroid_y)
-            source = "mock" if (settings.mock_mode or not settings.govmap_token) else "live"
-            parcel_data = ParcelFullData(gush=gush, helka=helka, geometry=geometry, plans=plans, source=source)
-            from ..services.claude_service import build_parcel_context
-            parcel_context = build_parcel_context(
-                gush, helka, parcel_data,
-                land_use=full_info.get("land_use", []),
-                taba=full_info.get("taba", []),
-                is_agricultural=full_info.get("is_agricultural", False),
-            )
-        except Exception:
-            pass
 
+            parcel_data = await get_parcel_cached(gush, helka)
+            if not parcel_data:
+                parcel_data = await get_parcel_data(gush, helka)
+                await set_parcel_cached(gush, helka, parcel_data)
+
+            parcel_context = build_parcel_context(gush, helka, parcel_data)
+        except Exception as e:
+            print(f"[chat] parcel context failed: {e}")
+
+    # ── Claude ─────────────────────────────────────────────────────────────────────────────────
     try:
         answer = await chat_claude([m.model_dump() for m in req.messages], parcel_context)
     except RuntimeError as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+    # ── Persist + lead intelligence ─────────────────────────────────────────────────
     session_id = req.session_id or str(uuid4())
     is_new_session = False
 
+    # user_id is accepted for lead scoring but NOT used for session ownership
+    # until a proper auth token check is wired up. This prevents spoofing
+    # another lead's chat history by passing an arbitrary user_id.
+    # TODO: validate user_id against a signed session token from /api/auth/verify-*
+    verified_user_id: str | None = None  # auth gate — disabled until token check exists
+
     async with async_session() as db:
-        if req.user_id:
-            result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
-            session = result.scalar_one_or_none()
-            if not session:
-                is_new_session = True
-                title = await generate_title(last_user_msg.content)
-                db.add(ChatSession(id=session_id, user_id=req.user_id, title=title))
-                await db.flush()
+        result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
+        existing_session = result.scalar_one_or_none()
+        if not existing_session:
+            is_new_session = True
+            title = await generate_title(last_user_msg.content)
+            # store without user binding — user_id will be patched after proper auth
+            db.add(ChatSession(id=session_id, user_id=verified_user_id, title=title))
+            await db.flush()
 
-            db.add(ChatMessage(session_id=session_id, role="user", content=last_user_msg.content))
-            db.add(ChatMessage(session_id=session_id, role="assistant", content=answer))
-            await db.commit()
+        db.add(ChatMessage(session_id=session_id, role="user", content=last_user_msg.content))
+        db.add(ChatMessage(session_id=session_id, role="assistant", content=answer))
+        await db.commit()
 
+        # ── lead intelligence (inside same db context) ─────────────────────────────────────
+        # Pass req.user_id for score tracking (read-only from leads table, no spoofing risk)
         await _update_lead_intelligence(req.user_id, req.messages, session_id, is_new_session, db)
 
     return ChatResponse(answer=answer, session_id=session_id)
@@ -231,18 +232,8 @@ async def save_session(req: SaveSessionRequest):
     return {"ok": True}
 
 
-@router.get("/api/sessions/{user_id}")
-async def get_sessions(user_id: str):
-    async with async_session() as db:
-        result = await db.execute(
-            select(ChatSession)
-            .where(ChatSession.user_id == user_id)
-            .order_by(ChatSession.updated_at.desc())
-        )
-        sessions = result.scalars().all()
-        return [{"id": s.id, "title": s.title, "created_at": str(s.created_at), "updated_at": str(s.updated_at)} for s in sessions]
-
-
+# NOTE: /api/sessions/{session_id}/messages MUST be declared before /api/users/{user_id}/sessions
+# to avoid FastAPI routing ambiguity (both have one path segment after a fixed prefix).
 @router.get("/api/sessions/{session_id}/messages")
 async def get_messages(session_id: str):
     async with async_session() as db:
@@ -253,3 +244,15 @@ async def get_messages(session_id: str):
         )
         messages = result.scalars().all()
         return [{"role": m.role, "content": m.content} for m in messages]
+
+
+@router.get("/api/users/{user_id}/sessions")
+async def get_sessions(user_id: str):
+    async with async_session() as db:
+        result = await db.execute(
+            select(ChatSession)
+            .where(ChatSession.user_id == user_id)
+            .order_by(ChatSession.updated_at.desc())
+        )
+        sessions = result.scalars().all()
+        return [{"id": s.id, "title": s.title, "created_at": str(s.created_at), "updated_at": str(s.updated_at)} for s in sessions]
