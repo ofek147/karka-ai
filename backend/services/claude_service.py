@@ -25,7 +25,14 @@ SYSTEM_PROMPT = """אתה סוכן AI מקצועי של karka-ai — פלטפו�
 ⚠️ המידע מוצג לצרכי לימוד בלבד ואינו מהווה ייעוץ משפטי, תכנוני, או השקעתי."""
 
 
-def build_parcel_context(gush: int, helka: int, parcel_data: ParcelFullData) -> str:
+def build_parcel_context(
+    gush: int,
+    helka: int,
+    parcel_data: ParcelFullData,
+    land_use: list = None,
+    taba: list = None,
+    is_agricultural: bool = False,
+) -> str:
     plans_text = ""
     if parcel_data.plans:
         plans_list = []
@@ -40,7 +47,30 @@ def build_parcel_context(gush: int, helka: int, parcel_data: ParcelFullData) -> 
     if parcel_data.geometry and parcel_data.geometry.area_sqm:
         area = f"\nשטח החלקה: {parcel_data.geometry.area_sqm:.0f} מ\"ר"
 
-    return f"""[נתוני חלקה אוטומטיים — גוש {gush}, חלקה {helka}{area}]
+    # Land use section
+    land_use_text = ""
+    if land_use:
+        lu = land_use[0] if land_use else {}
+        # Try common field keys for ייעוד
+        yu = lu.get("ייעוד") or lu.get("land_use") or lu.get("use_type") or ""
+        if yu:
+            land_use_text = f"\nייעוד קרקע: {yu}"
+
+    # Taba section
+    taba_text = ""
+    if taba:
+        taba_names = []
+        for t in taba[:3]:
+            name = t.get("plan_name") or t.get("תכנית") or t.get("mavat_name") or ""
+            if name:
+                taba_names.append(name)
+        if taba_names:
+            taba_text = f"\nתב\"עות רלוונטיות: {', '.join(taba_names)}"
+
+    # Agricultural flag
+    agri_text = "\nסוג חלקה: חקלאית" if is_agricultural else ""
+
+    return f"""[נתוני חלקה אוטומטיים — גוש {gush}, חלקה {helka}{area}{land_use_text}{taba_text}{agri_text}]
 תכניות בניה:
 {plans_text}"""
 

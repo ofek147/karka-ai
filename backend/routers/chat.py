@@ -12,7 +12,7 @@ from ..models.chat_model import ChatSession, ChatMessage
 from ..models.lead_model import Lead
 from ..services.claude_service import chat_claude, generate_title
 from ..clients.iplan_client import get_plans_by_centroid
-from ..clients.govmap_client import get_parcel_geometry
+from ..clients.govmap_client import get_parcel_geometry, get_full_parcel_info
 from ..models.parcel import ParcelFullData
 from ..config import settings
 
@@ -166,14 +166,20 @@ async def chat(request: Request, req: ChatRequest):
         try:
             gush = int(match.group(1) or match.group(3))
             helka = int(match.group(2) or match.group(4))
-            geometry = await get_parcel_geometry(gush, helka)
+            full_info = await get_full_parcel_info(gush, helka)
+            geometry = full_info["parcel"]
             plans = []
             if geometry.centroid_x is not None and geometry.centroid_y is not None:
                 plans = await get_plans_by_centroid(geometry.centroid_x, geometry.centroid_y)
             source = "mock" if (settings.mock_mode or not settings.govmap_token) else "live"
             parcel_data = ParcelFullData(gush=gush, helka=helka, geometry=geometry, plans=plans, source=source)
             from ..services.claude_service import build_parcel_context
-            parcel_context = build_parcel_context(gush, helka, parcel_data)
+            parcel_context = build_parcel_context(
+                gush, helka, parcel_data,
+                land_use=full_info.get("land_use", []),
+                taba=full_info.get("taba", []),
+                is_agricultural=full_info.get("is_agricultural", False),
+            )
         except Exception:
             pass
 

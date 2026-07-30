@@ -1,30 +1,41 @@
 """
 govmap.gov.il parcel data client — PRODUCTION READY
 
-API: POST https://www.govmap.gov.il/api/layers-catalog/entitiesByFieldWithMultipleValue
-Auth: apiToken in body + x-trace-id: <uuid> header + Origin: https://karka-ai.co.il
-Domain: karka-ai.co.il must be registered in govmap developer portal (APPROVED ✅)
+All endpoints tested live on 2026-07-30.
+API base: https://www.govmap.gov.il/api/layers-catalog/
+Auth: apiToken in body + x-trace-id: <uuid4> header
+Domain: karka-ai.co.il (APPROVED in govmap developer portal)
+Coordinates: EPSG:3857 (Web Mercator) — NOT TM35/EPSG:2039
 """
 
 import uuid
 import httpx
-from typing import Optional, Tuple
+from typing import Optional, List, Dict, Any
 from ..config import settings
 from ..models.parcel import ParcelGovmap
 
 _BASE = "https://www.govmap.gov.il/api/layers-catalog"
 _DOMAIN = "https://karka-ai.co.il"
 
-# Field name mapping (Hebrew → Python)
+# Known layer IDs
+LAYER_PARCEL_ALL = "15"
+LAYER_LAND_USE = "212150"       # ייעוד קרקע
+LAYER_TABA_RMI = "11"           # רצף מגרשי תב"ע - רמ"י
+LAYER_TABA = "186"              # תב"עות - נתיבי ישראל
+LAYER_AGRI_PARCELS = "350"      # חלקות חקלאיות
+
+# Hebrew field name → Python key
 _FIELD_MAP = {
     "מספר גוש": "gush_num",
     "תת גוש": "gush_suffix",
-    "חלקה": "parcel",
-    "שטח רשום (מ\"ר)": "legal_area",
+    'חלקה': "parcel",
+    'שטח רשום (מ"ר)': "legal_area",
     "סטטוס": "status_text",
+    "הערה": "note",
 }
 
-def _make_headers() -> dict:
+
+def _headers() -> dict:
     return {
         "Content-Type": "application/json",
         "Origin": _DOMAIN,
@@ -34,92 +45,199 @@ def _make_headers() -> dict:
     }
 
 
-def _parse_entity(entity: dict) -> dict:
-    """Parse entity fields from Hebrew fieldName to Python keys."""
-    result = {
-        "object_id": entity.get("objectId"),
-        "centroid_x": entity.get("centroid", [None, None])[0],
-        "centroid_y": entity.get("centroid", [None, None])[1],
-    }
-    for field in entity.get("fields", []):
-        py_key = _FIELD_MAP.get(field.get("fieldName", ""))
-        if py_key:
-            result[py_key] = field.get("fieldValue")
+def _parse_fields(fields: list) -> dict:
+    result = {}
+    for f in fields:
+        key = _FIELD_MAP.get(f.get("fieldName", ""))
+        if key:
+            result[key] = f.get("fieldValue")
     return result
+
+
+async def search_by_gush(gush: int, helka: Optional[int] = None) -> List[Dict]:
+    """
+    Search parcels by gush number.
+    Returns list of matching entities with fields.
+    If helka specified, filters to that specific parcel.
+    """
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            f"{_BASE}/entitiesByFieldWithMultipleValue",
+            headers=_headers(),
+            json={
+                "layer": "PARCEL_ALL",
+                "field": "gush_num",
+                "value": [str(gush)],
+                "apiToken": settings.govmap_token,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    entities_raw = (data.get("data") or [{}])[0].get("entities") or []
+    results = []
+    for e in entities_raw:
+        parsed = _parse_fields(e.get("fields", []))
+        parsed["object_id"] = e.get("objectId")
+        parsed["centroid_x"] = (e.get("centroid") or [None, None])[0]
+        parsed["centroid_y"] = (e.get("centroid") or [None, None])[1]
+        results.append(parsed)
+
+    if helka is not None:
+        results = [r for r in results if r.get("parcel") == helka]
+
+    return results
+
+
+async def get_parcel_polygon(centroid_x: float, centroid_y: float) -> Optional[Dict]:
+    """
+    Get full polygon geometry for a parcel using its centroid coordinates.
+    Returns GeoJSON Feature with MultiPolygon geometry + properties.
+    Coordinates in EPSG:3857.
+    """
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{_BASE}/apps/parcel-search/address",
+            headers=_headers(),
+            params={"x": centroid_x, "y": centroid_y},
+        )
+        resp.raise_for_status()
+        return resp.json()
+
+
+async def get_entities_at_point(x: float, y: float, layer_ids: List[str] = None) -> List[Dict]:
+    """
+    Get all layer entities at a given point.
+    Useful for getting land-use, taba, etc. at a parcel location.
+    """
+    if layer_ids is None:
+        layer_ids = [LAYER_PARCEL_ALL, LAYER_LAND_USE, LAYER_TABA_RMI]
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            f"{_BASE}/entitiesByPoint",
+            headers=_headers(),
+            json={
+                "point": [x, y],
+                "layers": [{"layerId": lid} for lid in layer_ids],
+                "tolerance": 10,
+                "apiToken": settings.govmap_token,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+    results = []
+    for layer_data in (data.get("data") or []):
+        layer_result = {
+            "layer_name": layer_data.get("name"),
+            "caption": layer_data.get("caption"),
+            "entities": [],
+        }
+        for e in (layer_data.get("entities") or []):
+            parsed = _parse_fields(e.get("fields", []))
+            parsed["object_id"] = e.get("objectId")
+            layer_result["entities"].append(parsed)
+        results.append(layer_result)
+    return results
 
 
 async def get_parcel_geometry(gush: int, helka: int) -> ParcelGovmap:
     """
-    Fetch parcel data from govmap for a given gush+helka.
-    
-    Strategy:
-    1. Query PARCEL_ALL by gush_num
-    2. Filter entities for matching helka
-    3. Return centroid + area (polygon requires additional call)
-    
+    Main entry point: fetch full parcel data for gush+helka.
+
+    Flow:
+    1. search_by_gush → find matching helka → get centroid
+    2. get_parcel_polygon(centroid) → get WKT polygon
+
     mock_mode=True → returns mock data
     """
     if settings.mock_mode or not settings.govmap_token:
         return _mock_parcel(gush, helka)
 
     try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            resp = await client.post(
-                f"{_BASE}/entitiesByFieldWithMultipleValue",
-                headers=_make_headers(),
-                json={
-                    "layer": "PARCEL_ALL",
-                    "field": "gush_num",
-                    "value": [str(gush)],
-                    "apiToken": settings.govmap_token,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        # Step 1: find parcel by gush+helka
+        matches = await search_by_gush(gush, helka)
 
-        entities_raw = (data.get("data") or [{}])[0].get("entities") or []
-        entities = [_parse_entity(e) for e in entities_raw]
+        if not matches:
+            print(f"[govmap] helka {helka} not found in gush {gush}")
+            return ParcelGovmap(gush=gush, helka=helka, shape_wkt=None,
+                                centroid_x=None, centroid_y=None, area_sqm=None)
 
-        # Filter for the specific helka
-        match = next((e for e in entities if e.get("parcel") == helka), None)
+        match = matches[0]
+        cx, cy = match.get("centroid_x"), match.get("centroid_y")
+        area = match.get("legal_area")
 
-        if not match:
-            print(f"[govmap] helka {helka} not found in gush {gush} ({len(entities)} entities returned)")
-            # Try returning first entity centroid as fallback for location context
-            fallback = entities[0] if entities else {}
-            return ParcelGovmap(
-                gush=gush,
-                helka=helka,
-                shape_wkt=None,
-                centroid_x=fallback.get("centroid_x"),
-                centroid_y=fallback.get("centroid_y"),
-                area_sqm=None,
-            )
+        # Step 2: get polygon
+        shape_wkt = None
+        if cx and cy:
+            try:
+                geo = await get_parcel_polygon(cx, cy)
+                if geo and isinstance(geo, dict):
+                    props = geo.get("properties", {})
+                    shape_wkt = props.get("polygoncoordinates")
+            except Exception as e:
+                print(f"[govmap] polygon fetch failed: {e}")
 
         return ParcelGovmap(
             gush=gush,
             helka=helka,
-            shape_wkt=None,  # polygon requires entitiesByPoint follow-up
-            centroid_x=match.get("centroid_x"),
-            centroid_y=match.get("centroid_y"),
-            area_sqm=float(match["legal_area"]) if match.get("legal_area") else None,
+            shape_wkt=shape_wkt,
+            centroid_x=cx,
+            centroid_y=cy,
+            area_sqm=float(area) if area else None,
         )
 
     except Exception as e:
-        print(f"[govmap] ERROR: {e}")
+        print(f"[govmap] ERROR get_parcel_geometry({gush},{helka}): {e}")
         return ParcelGovmap(gush=gush, helka=helka, shape_wkt=None,
                             centroid_x=None, centroid_y=None, area_sqm=None)
+
+
+async def get_full_parcel_info(gush: int, helka: int) -> Dict[str, Any]:
+    """
+    Extended info: parcel + land use + taba layers at same point.
+    Returns dict with parcel, land_use, taba, is_agricultural keys.
+    """
+    parcel = await get_parcel_geometry(gush, helka)
+
+    extra = {}
+    if parcel.centroid_x and parcel.centroid_y:
+        try:
+            layers = await get_entities_at_point(
+                parcel.centroid_x, parcel.centroid_y,
+                layer_ids=[LAYER_LAND_USE, LAYER_TABA_RMI, LAYER_AGRI_PARCELS]
+            )
+            for layer in layers:
+                name = (layer.get("layer_name") or "").lower()
+                caption = (layer.get("caption") or "").lower()
+                lid_hint = name + caption
+                if "212150" in lid_hint or "ייעוד" in lid_hint or "land" in lid_hint:
+                    extra["land_use"] = layer.get("entities", [])
+                elif "retzef" in lid_hint or "taba" in lid_hint or "תב" in lid_hint or "מגרש" in lid_hint:
+                    extra["taba"] = layer.get("entities", [])
+                elif "agri" in lid_hint or "חקלא" in lid_hint or "350" in lid_hint:
+                    extra["agri"] = layer.get("entities", [])
+        except Exception as e:
+            print(f"[govmap] get_full_parcel_info layers failed: {e}")
+
+    return {
+        "parcel": parcel,
+        "land_use": extra.get("land_use", []),
+        "taba": extra.get("taba", []),
+        "is_agricultural": bool(extra.get("agri")),
+    }
 
 
 def _mock_parcel(gush: int, helka: int) -> ParcelGovmap:
     _MOCK = {
         (6111, 50): ParcelGovmap(
             gush=6111, helka=50,
-            shape_wkt="POLYGON((179450 663850,179550 663850,179550 663950,179450 663950,179450 663850))",
-            centroid_x=179500.0, centroid_y=663900.0, area_sqm=850.0,
+            shape_wkt="MULTIPOLYGON Z (((179450 663850 0,179550 663850 0,179550 663950 0,179450 663950 0,179450 663850 0)))",
+            centroid_x=3872286.0, centroid_y=3773752.0, area_sqm=850.0,
         ),
     }
     return _MOCK.get((gush, helka), ParcelGovmap(
         gush=gush, helka=helka, shape_wkt=None,
-        centroid_x=179500.0, centroid_y=663900.0, area_sqm=None,
+        centroid_x=None, centroid_y=None, area_sqm=None,
     ))
