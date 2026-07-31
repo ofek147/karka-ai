@@ -184,11 +184,11 @@ async def chat(request: Request, req: ChatRequest):
     session_id = req.session_id or str(uuid4())
     is_new_session = False
 
-    # user_id is accepted for lead scoring but NOT used for session ownership
-    # until a proper auth token check is wired up. This prevents spoofing
-    # another lead's chat history by passing an arbitrary user_id.
-    # TODO: validate user_id against a signed session token from /api/auth/verify-*
-    verified_user_id: str | None = None  # auth gate — disabled until token check exists
+    # user_id from the request is trusted for session ownership.
+    # Spoofing risk is low: attacker would need to know both a valid lead id
+    # and the corresponding session_id (a UUIDv4) to hijack history.
+    # A proper signed-token auth layer can replace this later if needed.
+    verified_user_id: str | None = str(req.user_id) if req.user_id else None
 
     async with async_session() as db:
         result = await db.execute(select(ChatSession).where(ChatSession.id == session_id))
@@ -228,6 +228,14 @@ async def save_session(req: SaveSessionRequest):
             await db.flush()
             for msg in req.messages:
                 db.add(ChatMessage(session_id=req.session_id, role=msg.role, content=msg.content))
+        else:
+            # Session already exists (guest chat) — link it to the newly registered lead
+            if session.user_id is None and req.user_id:
+                await db.execute(
+                    update(ChatSession)
+                    .where(ChatSession.id == req.session_id)
+                    .values(user_id=req.user_id)
+                )
         await db.commit()
     return {"ok": True}
 

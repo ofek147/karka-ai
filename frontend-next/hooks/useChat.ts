@@ -51,6 +51,10 @@ export function useChat(options: UseChatOptions = {}) {
       try {
         const { answer, session_id } = await sendChat(newMessages, sessionId, user?.id);
         setSessionId(session_id);
+        // Persist session_id so RegisterModal can link guest conversation to new lead
+        if (typeof window !== "undefined") {
+          localStorage.setItem("karka_session_id", session_id);
+        }
         setMessages([...newMessages, { role: "assistant", content: answer }]);
         if (!user) {
           const count = incrementGuestCount();

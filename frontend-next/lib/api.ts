@@ -42,7 +42,7 @@ export async function registerUser(
 }
 
 export async function getSessions(userId: string): Promise<ChatSession[]> {
-  const res = await fetch(`${API}/api/sessions/${userId}`);
+  const res = await fetch(`${API}/api/users/${userId}/sessions`);
   if (!res.ok) return [];
   return res.json();
 }
