@@ -9,6 +9,8 @@ Coordinates: EPSG:3857 (Web Mercator) — NOT TM35/EPSG:2039
 """
 
 import uuid
+import re as _re
+from datetime import datetime
 import httpx
 from typing import Optional, List, Dict, Any
 from ..config import settings
@@ -142,6 +144,51 @@ async def get_entities_at_point(x: float, y: float, layer_ids: List[str] = None)
     return results
 
 
+async def _find_centroid_via_realestate(gush: int, helka: int):
+    """Fallback: estimate centroid from street-deals polygon, verify via entitiesByPoint."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            r = await client.get(
+                f"https://www.govmap.gov.il/api/real-estate/street-deals/{gush}-{helka}",
+                headers={k: v for k, v in _headers().items() if k != 'Content-Type'},
+                params={"limit": 1, "offset": 0, "startDate": "1998-01",
+                        "endDate": datetime.now().strftime("%Y-%m")},
+            )
+            if r.status_code != 200:
+                return None, None, None
+            deals = r.json().get("data", [])
+            if not deals or not deals[0].get("shape"):
+                return None, None, None
+
+            # Parse polygon centroid
+            nums = list(map(float, _re.findall(r'[-\d.]+', deals[0]["shape"])))
+            xs, ys = nums[0::2], nums[1::2]
+            cx_est = sum(xs) / len(xs)
+            cy_est = sum(ys) / len(ys)
+
+            # Verify via entitiesByPoint
+            ep = await client.post(
+                f"{_BASE}/entitiesByPoint",
+                headers=_headers(),
+                json={"point": [cx_est, cy_est],
+                      "layers": [{"layerId": LAYER_PARCEL_ALL}],
+                      "tolerance": 100,
+                      "apiToken": settings.govmap_token},
+            )
+            ep.raise_for_status()
+            for layer_data in (ep.json().get("data") or []):
+                for entity in (layer_data.get("entities") or []):
+                    parsed = _parse_fields(entity.get("fields", []))
+                    if parsed.get("parcel") == helka:
+                        cx = (entity.get("centroid") or [cx_est, cy_est])[0]
+                        cy = (entity.get("centroid") or [cx_est, cy_est])[1]
+                        area = parsed.get("legal_area")
+                        return cx, cy, area
+    except Exception as e:
+        print(f"[govmap] realestate fallback failed: {e}")
+    return None, None, None
+
+
 async def get_parcel_geometry(gush: int, helka: int) -> ParcelGovmap:
     """
     Main entry point: fetch full parcel data for gush+helka.
@@ -156,17 +203,20 @@ async def get_parcel_geometry(gush: int, helka: int) -> ParcelGovmap:
         return _mock_parcel(gush, helka)
 
     try:
-        # Step 1: find parcel by gush+helka
+        # Step 1: find parcel in batch (entitiesByFieldWithMultipleValue)
         matches = await search_by_gush(gush, helka)
 
-        if not matches:
-            print(f"[govmap] helka {helka} not found in gush {gush}")
-            return ParcelGovmap(gush=gush, helka=helka, shape_wkt=None,
-                                centroid_x=None, centroid_y=None, area_sqm=None)
-
-        match = matches[0]
-        cx, cy = match.get("centroid_x"), match.get("centroid_y")
-        area = match.get("legal_area")
+        if matches:
+            match = matches[0]
+            cx, cy = match.get("centroid_x"), match.get("centroid_y")
+            area = match.get("legal_area")
+        else:
+            # Fallback: estimate centroid from real-estate API polygon
+            cx, cy, area = await _find_centroid_via_realestate(gush, helka)
+            if not cx:
+                print(f"[govmap] helka {helka} not found in gush {gush}")
+                return ParcelGovmap(gush=gush, helka=helka, shape_wkt=None,
+                                    centroid_x=None, centroid_y=None, area_sqm=None)
 
         # Step 2: get polygon
         shape_wkt = None

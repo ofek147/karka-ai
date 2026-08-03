@@ -17,6 +17,31 @@ class PlanInfo(BaseModel):
     pl_number: Optional[str] = None
     station_desc: Optional[str] = None
     shape_area: Optional[float] = None
+    internet_short_status: Optional[str] = None
+    plan_charactor_name: Optional[str] = None
+    pl_landuse_string: Optional[str] = None
+    pl_objectives: Optional[str] = None
+    pl_url: Optional[str] = None
+    district_name: Optional[str] = None
+    plan_county_name: Optional[str] = None
+    ja_concat: Optional[str] = None
+    receiving_date: Optional[int] = None
+    depositing_date: Optional[int] = None
+    pl_date7: Optional[int] = None
+    pl_date_8: Optional[int] = None
+    pq_authorised_quantity_120: Optional[float] = None
+    quantity_delta_120: Optional[float] = None
+    pl_area_dunam: Optional[float] = None
+
+
+class LandUseInfo(BaseModel):
+    yiud: Optional[str] = None         # mavat_name — zone type
+    yiud_heb: Optional[str] = None     # mavat_name (same, for compat)
+    area_dunam: Optional[float] = None
+    plan_name: Optional[str] = None
+    plan_num: Optional[str] = None
+    yt: Optional[str] = None           # mavat_code as string
+    plan_status: Optional[str] = None  # station_desc (plan approval status)
 
 
 class ParcelFullData(BaseModel):
@@ -24,6 +49,7 @@ class ParcelFullData(BaseModel):
     helka: int
     geometry: Optional[ParcelGovmap] = None
     plans: List[PlanInfo] = []
+    land_use_iplan: List[LandUseInfo] = []
     source: str  # "live" | "mock" | "cache"
     land_use: list = []
     taba: list = []
