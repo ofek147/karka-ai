@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>Report</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; direction: rtl; background: #f7f9fc; color: #1a1a2e; font-size: 11pt; line-height: 1.6; }
+    .page { max-width: 780px; margin: 0 auto; padding: 24px 28px; background: #fff; border-radius: 12px; box-shadow: 0 2px 20px rgba(0,0,0,0.06); }
+    .header { background: #0f2d5c; color: #fff; padding: 28px 32px; border-radius: 12px; margin-bottom: 18px; display: flex; align-items: flex-start; justify-content: space-between; }
+    .header-logo { font-size: 24pt; font-weight: 700; color: #fff; }
+    .header-logo span { color: #64b5f6; }
+    .header-main { flex: 1; }
+    .header-title { margin-top: 6px; font-size: 13pt; font-weight: 600; color: #e3f0ff; }
+    .header-meta { text-align: left; font-size: 8.5pt; color: #b8d4f5; line-height: 1.8; min-width: 140px; }
+    .section { border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+    .section-header { background: linear-gradient(135deg, #f0f5ff 0%, #e8f0fe 100%); border-bottom: 2px solid #d0dff5; padding: 8px 14px; display: flex; align-items: center; gap: 7px; }
+    .section-icon { font-size: 13pt; }
+    .section-title { font-size: 11.5pt; font-weight: 700; color: #0f2d5c; }
+    .section-body { padding: 14px 16px; }
+    .identity-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+    .identity-item { background: #f8faff; border: 1px solid #dde7f8; border-radius: 6px; padding: 10px 12px; text-align: center; }
+    .identity-label { font-size: 7.5pt; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+    .identity-value { font-size: 14pt; font-weight: 700; color: #0f2d5c; }
+    .identity-sub { font-size: 8pt; color: #94a3b8; margin-top: 1px; }
+    .leaflet-map { height: 400px; border-radius: 8px; border: 1px solid #d0dff5; }
+    .map-caption { font-size: 7.5pt; color: #94a3b8; margin-top: 4px; text-align: center; }
+    .yiud-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+    .yiud-tag { background: #eff6ff; border: 1px solid #bfdbfe; border-right: 4px solid #3b82f6; border-radius: 5px; padding: 7px 11px; }
+    .yiud-name { font-weight: 700; font-size: 10pt; color: #0f2d5c; display: block; }
+    .yiud-area { font-size: 8pt; color: #64748b; margin-top: 2px; }
+    .plans-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .plans-table th { background: #e8f0fe; color: #1e3a5f; font-weight: 700; padding: 7px 9px; text-align: right; border-bottom: 2px solid #c4d4f0; white-space: nowrap; }
+    .plans-table td { padding: 7px 9px; border-bottom: 1px solid #f0f4fa; vertical-align: top; }
+    .plans-table tr:last-child td { border-bottom: none; }
+    .plans-table tr:nth-child(even) td { background: #fafcff; }
+    .plan-name { font-weight: 600; color: #0f2d5c; font-size: 9.5pt; display: block; }
+    .plan-num { font-size: 7.5pt; color: #94a3b8; display: block; }
+    .plan-url { font-size: 7.5pt; color: #3b82f6; text-decoration: none; display: block; margin-top: 2px; }
+    .plan-objectives { font-size: 8pt; color: #475569; margin-top: 3px; font-style: italic; display: block; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 8pt; font-weight: 700; white-space: nowrap; }
+    .badge-green { background: #dcfce7; color: #15803d; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .badge-blue { background: #ede9fe; color: #4f46e5; }
+    .badge-gray { background: #f1f5f9; color: #475569; }
+    .type-badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 7.5pt; font-weight: 600; margin-top: 2px; }
+    .type-local { background: #dbeafe; color: #1d4ed8; }
+    .type-district { background: #fce7f3; color: #9d174d; }
+    .type-national { background: #d1fae5; color: #065f46; }
+    .type-other { background: #f1f5f9; color: #475569; }
+    .timeline { padding-right: 18px; position: relative; }
+    .timeline::before { content: ""; position: absolute; right: 7px; top: 6px; bottom: 6px; width: 2px; background: #dde7f8; }
+    .tl-item { position: relative; margin-bottom: 12px; padding-right: 18px; }
+    .tl-dot { position: absolute; right: -5px; top: 5px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #94a3b8; background: #fff; }
+    .tl-dot.green { background: #22c55e; border-color: #15803d; }
+    .tl-dot.yellow { background: #f59e0b; border-color: #854d0e; }
+    .tl-dot.blue { background: #6366f1; border-color: #4338ca; }
+    .tl-date { font-size: 8pt; color: #64748b; font-weight: 600; }
+    .tl-name { font-size: 10pt; font-weight: 700; color: #0f2d5c; }
+    .tl-status { font-size: 8.5pt; color: #64748b; }
+    .ai-box { background: #f0f7ff; border: 1px solid #bfdbfe; border-right: 4px solid #1a4a8a; border-radius: 8px; padding: 15px 17px; }
+    .ai-label { font-size: 7.5pt; font-weight: 700; color: #3b82f6; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 7px; }
+    .ai-text { font-size: 10.5pt; line-height: 1.8; color: #1e3a5f; }
+    .disclaimer { background: #fffbeb; border: 1px solid #fde68a; border-radius: 6px; padding: 9px 13px; margin-top: 12px; font-size: 8pt; color: #78350f; line-height: 1.5; }
+    .footer { margin-top: 12px; text-align: center; font-size: 7.5pt; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 9px; }
+    .footer strong { color: #0f2d5c; }
+    .empty-state { text-align: center; color: #94a3b8; padding: 16px; font-size: 10pt; }
+    /* ── Real Estate / Economic section ─────────────────── */
+    .re-grid { display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start; }
+    .re-table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+    .re-table th { background: #f0fdf4; color: #14532d; font-weight: 700; padding: 7px 10px; text-align: center; border-bottom: 2px solid #bbf7d0; white-space: nowrap; }
+    .re-table th:first-child { text-align: right; }
+    .re-table td { padding: 7px 10px; border-bottom: 1px solid #f0f4fa; text-align: center; font-size: 9.5pt; }
+    .re-table td:first-child { text-align: right; font-weight: 600; color: #1a2e1a; }
+    .re-table tr:last-child td { border-bottom: none; }
+    .re-table tr:nth-child(even) td { background: #f8fffe; }
+    .re-null { color: #cbd5e1; }
+    .trend-card { background: #f0fdf4; border: 1px solid #bbf7d0; border-right: 4px solid #16a34a; border-radius: 8px; padding: 14px 16px; min-width: 130px; text-align: center; white-space: nowrap; }
+    .trend-card.down { background: #fff1f2; border-color: #fecdd3; border-right-color: #dc2626; }
+    .trend-card.stable { background: #f8faff; border-color: #e2e8f0; border-right-color: #94a3b8; }
+    .trend-card.unknown { background: #f8faff; border-color: #e2e8f0; border-right-color: #94a3b8; }
+    .trend-icon { font-size: 22pt; line-height: 1; }
+    .trend-pct { font-size: 15pt; font-weight: 700; margin: 4px 0 2px; }
+    .trend-pct.green { color: #16a34a; }
+    .trend-pct.red { color: #dc2626; }
+    .trend-pct.gray { color: #64748b; }
+    .trend-label { font-size: 8pt; color: #64748b; }
+    .re-note { font-size: 7.5pt; color: #94a3b8; margin-top: 8px; }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <!-- 1. HEADER -->
+  <div class="header">
+    <div class="header-main">
+      <div class="header-logo">karka<span>.ai</span></div>
+      <div class="header-title">
+        דוח תכנוני &mdash; גוש 6672, חלקה 52 &middot; הרצליה
+      </div>
+    </div>
+    <div class="header-meta">
+      <div>03/08/2026 20:57</div>
+      <div>גוש 6672 &middot; חלקה 52</div>
+      <div>הרצליה</div>
+    </div>
+  </div>
+
+  <!-- 2. MAP -->
+  
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F5FA;</span>
+      <span class="section-title">מפת חלקה</span>
+    </div>
+    <div class="section-body" style="padding:10px 14px;">
+      <div id="parcel-map" class="leaflet-map"></div>
+      <div class="map-caption">מקור: OpenStreetMap contributors | 3878290, 3787403 EPSG:3857</div>
+    </div>
+  </div>
+  <script>
+    (function() {
+      var cx = 3878290.3106739605;
+      var cy = 3787403.943592255;
+      var lon = cx / 20037508.34 * 180;
+      var lat = Math.atan(Math.sinh(Math.PI * cy / 20037508.34)) * 180 / Math.PI;
+
+      var map = L.map('parcel-map').setView([lat, lon], 15);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+      L.marker([lat, lon]).addTo(map);
+
+      var wkt = "MULTIPOLYGON Z (((3878374.6329616252 3787433.2411201894 0.00400978140533,3878359.487881352 3787373.884649268 0.004012101329863,3878213.24521955 3787374.646064321 0.003998628817499,3878213.6893209 3787434.174891009 0.003994950093329,3878374.6329616252 3787433.2411201894 0.00400978140533)))";
+      if (wkt) {
+        var nums = wkt.match(/-?\d+\.?\d*/g);
+        if (nums) {
+          nums = nums.map(Number);
+          var latlngs = [];
+          for (var i = 0; i < nums.length; i += 3) {
+            var plon = nums[i] / 20037508.34 * 180;
+            var plat = Math.atan(Math.sinh(Math.PI * nums[i+1] / 20037508.34)) * 180 / Math.PI;
+            latlngs.push([plat, plon]);
+          }
+          if (latlngs.length > 0) {
+            L.polygon(latlngs, { color: '#2563eb', fillColor: '#3b82f6', fillOpacity: 0.3, weight: 2 }).addTo(map);
+          }
+        }
+      }
+    })();
+  </script>
+  
+
+  <!-- 3. IDENTITY -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F4CB;</span>
+      <span class="section-title">נתוני זהות</span>
+    </div>
+    <div class="section-body">
+      <div class="identity-grid">
+        <div class="identity-item"><div class="identity-label">גוש</div><div class="identity-value">6672</div></div>
+        <div class="identity-item"><div class="identity-label">חלקה</div><div class="identity-value">52</div></div>
+        <div class="identity-item">
+          <div class="identity-label">שטח מ"ר</div>
+          <div class="identity-value">6,570</div>
+          <div class="identity-sub">מ"ר</div>
+        </div>
+        <div class="identity-item">
+          <div class="identity-label">שטח דונם</div>
+          <div class="identity-value">6.57</div>
+          <div class="identity-sub">דונם</div>
+        </div>
+      </div>
+      
+      <div style="margin-top:10px; padding:8px 12px; background:#f8faff; border-radius:5px; font-size:10pt;">
+        <strong>עיר/יישוב:</strong> הרצליה
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- 4. LAND USE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F3D7;</span>
+      <span class="section-title">ייעודי קרקע</span>
+    </div>
+    <div class="section-body">
+      
+      <div class="yiud-grid">
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">דרך מוצעת (שמורת דרך עתידית — לא ניתן לבנות)</span>
+          
+          <div class="yiud-area">שטח: 1.62 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">מבנים ומוסדות ציבור</span>
+          
+          <div class="yiud-area">שטח: 2.53 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">מגורים ד' (בנייה רוויה — בניינים רב-קומתיים)</span>
+          
+          <div class="yiud-area">שטח: 3.60 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">שטח ציבורי פתוח</span>
+          
+          <div class="yiud-area">שטח: 2.27 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">מגורים ב' (בנייה צמודת קרקע — בתים פרטיים)</span>
+          
+          <div class="yiud-area">שטח: 0.53 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">יעוד עפ"י תכנית מאושרת אחרת</span>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">דרך (שמורת דרך — לא ניתן לבנות)</span>
+          
+          <div class="yiud-area">שטח: 3.92 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">מגורים ג' (בנייה נמוכה — 2–4 קומות)</span>
+          
+          <div class="yiud-area">שטח: 1.62 דונם</div>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">אזור פיתוח</span>
+          
+        </div>
+        
+        <div class="yiud-tag">
+          <span class="yiud-name">מרחב עירוני מוטה מטרו</span>
+          
+        </div>
+        
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- 5. PLANS TABLE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F4C4;</span>
+      <span class="section-title">תכניות בנייה (7)</span>
+    </div>
+    <div class="section-body" style="padding: 0;">
+      
+      <table class="plans-table">
+        <thead><tr>
+          <th style="width:35%">תכנית</th>
+          <th style="width:22%">סטאטוס</th>
+          <th style="width:15%">סוג</th>
+          <th style="width:28%">מטרות / קישור</th>
+        </tr></thead>
+        <tbody>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב</span>
+              <span class="plan-num">תמא/ 60</span>
+            </td>
+            <td>
+              <span class="badge badge-gray">אישור</span>
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב ^ תכנית זו מהווה תכנית משלימה לתכניות המטרו. מטרתה של התכנית,...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/99005182356/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">תכנית שימור אתרים הרצליה - הר/2000/שמ</span>
+              <span class="plan-num">504-0113134</span>
+            </td>
+            <td>
+              <span class="badge badge-gray">אישור</span>
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">תכנית שימור אתרים הרצליה - הר/2000/שמ ^ לקבוע הוראות ותנאים להבטחת שימור ושיקום אתרי המורשת הבנויה והנופית של העיר, ע"י ...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/5000249731/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים</span>
+              <span class="plan-num">504-0760520</span>
+            </td>
+            <td>
+              <span class="badge badge-gray">אישור</span>
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים ^ הוספת שימושים לטובת שבילי אופניים, שבילי הולכי רגל ומתקני הצללה לכל השט...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/5001009885/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים</span>
+              <span class="plan-num">504-0273037</span>
+            </td>
+            <td>
+              <span class="badge badge-gray">אישור</span>
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים ^ א. קביעת הוראות לסגירת מרפסות בתחומי קווי בניין תב"עיים בבניי...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/5000338159/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">הר/2530</span>
+              <span class="plan-num">504-0336685</span>
+            </td>
+            <td>
+              <span class="badge badge-yellow">בתהליך אישור (הוגשו התנגדויות, בהמתנה להכרעה)</span>
+              
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">הר/2530 ^ א.	התווית מסגרת תכנונית כוללת להבטחת איכות חיים עירונית לכלל תושבי העיר תוך ניצול יתרונות מיקומה  במרחב המטרופ...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/5000368373/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">הרובע הצפוני הרצליה - שכונת המטרו</span>
+              <span class="plan-num">תמל/ 3006</span>
+            </td>
+            <td>
+              <span class="badge badge-yellow">בהפקדה (בתהליך אישור — ניתן להגיש התנגדויות)</span>
+              
+            </td>
+            <td>
+              <span class="type-badge type-local">מקומית</span>
+            </td>
+            <td>
+              
+              <span class="plan-objectives">הרובע הצפוני הרצליה - שכונת המטרו ^ הקמת שכונה מעורבת שימושים במרחב שבין השכונות גן רש"ל ונחלת עדה בתחום ההשפעה של מערכת...</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/99001017471/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+          
+          <tr>
+            <td>
+              <span class="plan-name">תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב</span>
+              <span class="plan-num">תמא/ 70</span>
+            </td>
+            <td>
+              <span class="badge badge-gray">אישור</span>
+            </td>
+            <td>
+              <span class="type-badge type-national">ארצית</span>
+              
+            </td>
+            <td>
+              
+              <span class="plan-objectives">תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב ^  ^</span>
+              
+              
+              <a class="plan-url" href="https://mavat.iplan.gov.il/SV4/1/99005242136/310">צפייה במבא"ת &rarr;</a>
+              
+            </td>
+          </tr>
+          
+        </tbody>
+      </table>
+      
+    </div>
+  </div>
+
+  <!-- 6. TIMELINE -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F4C5;</span>
+      <span class="section-title">ציר זמן</span>
+    </div>
+    <div class="section-body">
+      
+      <div class="timeline">
+        
+        
+        <div class="tl-item">
+          <div class="tl-dot "></div>
+          <div class="tl-date">2025</div>
+          <div class="tl-name">תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב</div>
+          <div class="tl-status">אישור</div>
+        </div>
+        
+        
+        <div class="tl-item">
+          <div class="tl-dot "></div>
+          <div class="tl-date">2022</div>
+          <div class="tl-name">תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב</div>
+          <div class="tl-status">אישור</div>
+        </div>
+        
+        
+        <div class="tl-item">
+          <div class="tl-dot "></div>
+          <div class="tl-date">2021</div>
+          <div class="tl-name">תכנית שימור אתרים הרצליה - הר/2000/שמ</div>
+          <div class="tl-status">אישור</div>
+        </div>
+        
+        
+        <div class="tl-item">
+          <div class="tl-dot "></div>
+          <div class="tl-date">2020</div>
+          <div class="tl-name">הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים</div>
+          <div class="tl-status">אישור</div>
+        </div>
+        
+        
+        <div class="tl-item">
+          <div class="tl-dot "></div>
+          <div class="tl-date">2016</div>
+          <div class="tl-name">הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים</div>
+          <div class="tl-status">אישור</div>
+        </div>
+        
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- 7. REAL ESTATE / ECONOMIC DATA -->
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F4B0;</span>
+      <span class="section-title">&#x1F4B0; נתוני שוק</span>
+    </div>
+    <div class="section-body">
+      <div class="re-grid">
+
+        <!-- Price table -->
+        <div>
+          <table class="re-table">
+            <thead>
+              <tr>
+                <th>ממוצע מחיר למ&quot;ר</th>
+                <th>1 שנה</th>
+                <th>3 שנים</th>
+                <th>5 שנים</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>החלקה</td>
+                <td><span class="re-null">&mdash;</span></td>
+                <td>&#x20AA;12,224</td>
+                <td>&#x20AA;12,224</td>
+              </tr>
+              <tr>
+                <td>שכונה</td>
+                <td>&#x20AA;177</td>
+                <td>&#x20AA;23,380</td>
+                <td>&#x20AA;21,120</td>
+              </tr>
+              <tr>
+                <td>עיר</td>
+                <td>&#x20AA;38,415</td>
+                <td>&#x20AA;38,415</td>
+                <td>&#x20AA;38,415</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="re-note">
+            מבוסס על 4 עסקאות בחלקה, 34 עסקאות בשכונה (5 שנים אחרונות)
+          </div>
+        </div>
+
+        <!-- Trend card -->
+        <div class="trend-card down">
+          <div class="trend-label">מגמת מחירים</div>
+          <div class="trend-icon">
+            &#x2193;
+            
+          </div>
+          <div class="trend-pct red">
+            -99.2%
+          </div>
+          <div class="trend-label">
+            ירידה ב-5 שנים
+            
+          </div>
+          <div class="trend-label" style="margin-top:6px; font-size:7pt;">1 שנה vs 5 שנים (שכונה)</div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- 8. AI ANALYSIS -->
+  
+  <div class="section">
+    <div class="section-header">
+      <span class="section-icon">&#x1F916;</span>
+      <span class="section-title">ניתוח AI</span>
+    </div>
+    <div class="section-body">
+      <div class="ai-box">
+        <div class="ai-label">Claude AI &mdash; דעת מקצועית</div>
+        <div class="ai-text">מדובר בחלקה גדולה יחסית (כ-6.5 דונם) בהרצליה עם ייעודים מעורבים — חלק ממנה מיועד למגורים (סוגים ב' ו-ד'), חלק לשטח ציבורי ולדרך מוצעת. החלקה נמצאת באזור "הרובע הצפוני - שכונת המטרו", שהוא פרויקט עירוני משמעותי שנמצא כרגע בהפקדה (ניתן עדיין להגיש התנגדויות), ותכנית נוספת (הר/2530) בהמתנה להכרעה בהתנגדויות. המשמעות המעשית: עד לאישור סופי של התכניות החדשות, אין ודאות תכנונית מלאה לגבי היקפי הבנייה המותרים, ויש לבדוק מה הזכויות הקיימות לפי התכניות התקפות היום. מומלץ לעקוב אחר התקדמות התכניות ולבחון אם יש צורך בהגשת התנגדות או עמדה.
+
+⚠️ המידע מוצג לצרכי לימוד בלבד ואינו מהווה ייעוץ משפטי, תכנוני, או השקעתי.</div>
+      </div>
+    </div>
+  </div>
+  
+
+  <!-- 9. DISCLAIMER + FOOTER -->
+  <div class="disclaimer">
+    <strong>&#x26A0;&#xFE0F; הבהרה משפטית:</strong>
+    המידע בדוח זה מוצג לצרכי אינפורמציה בלבד ואינו מהווה ייעוץ משפטי, תכנוני או השקעותי. לפני קבלת החלטות השקעה יש להתייעץ עם עורך דין ומתכנן מוסמך.
+  </div>
+  <div class="footer">
+    <strong>karka.ai</strong> &mdash; דוח נוצר באופן אוטומטי | 03/08/2026 20:57 | מקורות: govmap.gov.il, iplan.gov.il
+  </div>
+
+</div>
+</body>
+</html>
