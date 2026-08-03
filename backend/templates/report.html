@@ -1,817 +1,991 @@
 <!DOCTYPE html>
-<html lang="he" dir="rtl">
+<html dir="rtl" lang="he">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>דוח תכנוני — גוש {{ gush }}, חלקה {{ helka }}{% if city %} · {{ city }}{% endif %}</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <style>
-    :root {
-      --navy:       #0A1628;
-      --gold:       #C5A55A;
-      --gold-light: #F5EDD6;
-      --gray-50:    #F9FAFB;
-      --gray-100:   #F3F4F6;
-      --gray-200:   #E5E7EB;
-      --gray-400:   #9CA3AF;
-      --gray-600:   #4B5563;
-      --gray-800:   #1F2937;
-      --white:      #FFFFFF;
-      --green:      #065F46;
-      --green-bg:   #D1FAE5;
-      --yellow:     #92400E;
-      --yellow-bg:  #FEF3C7;
-      --blue:       #1E40AF;
-      --blue-bg:    #DBEAFE;
-      --red:        #991B1B;
-      --red-bg:     #FEE2E2;
-      --page-bg:    #F0F2F5;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>דוח תכנוני — גוש {{ gush }} חלקה {{ helka }}</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;600;700&family=Frank+Ruhl+Libre:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  /* ── Reset & Base ─────────────────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    html { direction: rtl; }
-    body {
-      font-family: 'Frank Ruhl Libre', serif;
-      direction: rtl;
-      background: var(--page-bg);
-      color: var(--gray-800);
-      font-size: 16px;
-      line-height: 1.7;
-      -webkit-font-smoothing: antialiased;
-    }
+  :root {
+    --navy:       #0A1628;
+    --dark:       #0D0D0D;
+    --dark-card:  #1C1C1C;
+    --accent:     #E8590C;
+    --teal:       #7FA8B5;
+    --white:      #FFFFFF;
+    --light-bg:   #EBEEF0;
+    --gray-text:  #8A8A8A;
+    --light-text: #B5B5B5;
+    --green:      #22C55E;
+    --yellow:     #EAB308;
+  }
 
-    .page-wrapper {
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 20px 16px 40px;
-    }
+  body {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 14px;
+    line-height: 1.7;
+    background: #fff;
+  }
 
-    .section {
-      background: var(--white);
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
+  /* ── PDF Page Setup ───────────────────────────────────────── */
+  @page {
+    size: A4;
+    margin: 0;
+  }
 
-    .section-body { padding: 24px 28px; }
+  .slide {
+    width: 210mm;
+    height: 297mm;
+    page-break-after: always;
+    overflow: hidden;
+    position: relative;
+  }
 
-    .section-heading {
-      font-size: 18px;
-      font-weight: 700;
-      color: var(--navy);
-      border-right: 3px solid var(--gold);
-      padding-right: 12px;
-      margin-bottom: 20px;
-    }
+  .slide:last-child {
+    page-break-after: avoid;
+  }
 
-    /* HEADER */
-    .header {
-      background: var(--navy);
-      border-radius: 12px;
-      padding: 28px 32px 0;
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
+  /* ── Shared Components ────────────────────────────────────── */
+  .logo {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 32px;
+    line-height: 1;
+    color: var(--white);
+  }
+  .logo .accent { color: var(--accent); }
 
-    .header-inner {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      padding-bottom: 24px;
-      border-bottom: 3px solid var(--gold);
-    }
+  .logo-divider {
+    width: 120px;
+    height: 2px;
+    background: var(--accent);
+    margin-top: 8px;
+  }
 
-    .header-left { flex: 1; }
+  .logo-dark .logo-letter { color: var(--navy); }
+  .logo-dark .accent { color: var(--accent); }
 
-    .header-logo {
-      font-size: 28px;
-      font-weight: 900;
-      color: var(--white);
-      letter-spacing: -0.5px;
-      line-height: 1;
-      margin-bottom: 12px;
-    }
-    .header-logo .logo-a { color: var(--gold); }
+  .section-divider {
+    height: 2px;
+    background: var(--accent);
+    margin: 12px 0 20px;
+  }
 
-    .header-divider {
-      width: 40px;
-      height: 1px;
-      background: var(--gold);
-      opacity: 0.5;
-      margin-bottom: 12px;
-    }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border-radius: 20px;
+    padding: 8px 16px;
+    font-size: 13px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 400;
+  }
 
-    .header-title {
-      font-size: 18px;
-      font-weight: 500;
-      color: var(--white);
-      line-height: 1.4;
-    }
+  .pill-outline {
+    background: rgba(255,255,255,0.15);
+    border: 1px solid rgba(255,255,255,0.3);
+    color: var(--white);
+  }
 
-    .header-right {
-      text-align: left;
-      font-size: 12px;
-      color: rgba(255,255,255,0.65);
-      line-height: 1.9;
-      min-width: 150px;
-      flex-shrink: 0;
-      padding-top: 4px;
-    }
-    .header-right .meta-line { display: block; }
+  .badge {
+    display: inline-block;
+    border-radius: 20px;
+    padding: 3px 10px;
+    font-size: 11px;
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    line-height: 1.6;
+  }
 
-    /* KEY FACTS */
-    .facts-bar {
-      background: var(--gold-light);
-      border: 1px solid var(--gold);
-      border-radius: 12px;
-      margin-bottom: 20px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-      overflow: hidden;
-    }
+  .badge-teal    { background: rgba(127,168,181,0.18); color: var(--teal); border: 1px solid rgba(127,168,181,0.4); }
+  .badge-orange  { background: rgba(232,89,12,0.15);   color: var(--accent); border: 1px solid rgba(232,89,12,0.35); }
+  .badge-gray    { background: rgba(138,138,138,0.15); color: var(--gray-text); border: 1px solid rgba(138,138,138,0.3); }
+  .badge-green   { background: rgba(34,197,94,0.15);   color: var(--green); border: 1px solid rgba(34,197,94,0.3); }
+  .badge-yellow  { background: rgba(234,179,8,0.15);   color: var(--yellow); border: 1px solid rgba(234,179,8,0.3); }
 
-    .fact-item {
-      padding: 18px 20px;
-      text-align: center;
-      border-left: 1px solid var(--gold);
-    }
-    .fact-item:last-child { border-left: none; }
+  /* ── Slide 1: COVER ───────────────────────────────────────── */
+  #slide-cover {
+    background: var(--navy);
+  }
 
-    .fact-label {
-      display: block;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--gray-400);
-      margin-bottom: 6px;
-      font-weight: 400;
-    }
+  .cover-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 
-    .fact-value {
-      display: block;
-      font-size: 22px;
-      font-weight: 700;
-      color: var(--navy);
-      line-height: 1.1;
-    }
+  .cover-overlay {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.75) 100%);
+  }
 
-    /* MAP */
-    .map-section {
-      background: var(--white);
-      border-radius: 12px;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
+  .cover-content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
 
-    #map { height: 420px; width: 100%; }
+  .cover-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 36px 40px 0;
+  }
 
-    .map-attribution {
-      padding: 6px 12px;
-      font-size: 11px;
-      color: var(--gray-400);
-      text-align: center;
-      border-top: 1px solid var(--gray-200);
-    }
+  .cover-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 0 48px 48px;
+  }
 
-    /* LAND USE */
-    .yiud-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-      gap: 12px;
-    }
+  .cover-label {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 3px;
+    color: rgba(255,255,255,0.8);
+    margin-bottom: 10px;
+  }
 
-    .yiud-card {
-      border: 1px solid var(--gray-200);
-      border-right: 3px solid var(--navy);
-      border-radius: 8px;
-      padding: 14px 16px;
-      background: var(--white);
-    }
+  .cover-divider {
+    width: 80px;
+    height: 2px;
+    background: var(--accent);
+    margin-bottom: 18px;
+  }
 
-    .yiud-name {
-      font-size: 15px;
-      font-weight: 700;
-      color: var(--navy);
-      display: block;
-      margin-bottom: 4px;
-    }
+  .cover-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 56px;
+    color: var(--white);
+    line-height: 1.1;
+    margin-bottom: 8px;
+  }
 
-    .yiud-explained {
-      font-size: 13px;
-      color: var(--gray-600);
-      display: block;
-      margin-bottom: 6px;
-      line-height: 1.5;
-    }
+  .cover-subtitle {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 28px;
+    color: rgba(255,255,255,0.9);
+    margin-bottom: 32px;
+  }
 
-    .yiud-area {
-      font-size: 12px;
-      color: var(--gray-400);
-      display: block;
-    }
+  .cover-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    flex-direction: row-reverse;
+    justify-content: flex-end;
+  }
 
-    /* PLANS */
-    .plan-card {
-      border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      background: var(--white);
-      padding: 18px 20px;
-      margin-bottom: 12px;
-      transition: box-shadow 0.2s ease;
-    }
-    .plan-card:last-child { margin-bottom: 0; }
-    .plan-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+  /* SVG polygon overlay container */
+  .map-container {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
 
-    .plan-card.status-approved  { border-right: 3px solid var(--green); }
-    .plan-card.status-deposited { border-right: 3px solid var(--gold); }
-    .plan-card.status-before    { border-right: 3px solid var(--blue); }
-    .plan-card.status-other     { border-right: 3px solid var(--gray-400); }
+  .map-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 
-    .plan-card-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
+  .map-container svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+  }
 
-    .plan-card-top-right {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-      flex: 1;
-    }
+  /* ── Slide 2: Land Use ────────────────────────────────────── */
+  #slide-land-use {
+    background: var(--light-bg);
+  }
 
-    .plan-name { font-size: 15px; font-weight: 700; color: var(--navy); }
-    .plan-meta { font-size: 12px; color: var(--gray-400); margin-bottom: 6px; }
+  .side-title-wrapper {
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 80px;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
 
-    .plan-objectives {
-      font-size: 13px;
-      color: var(--gray-600);
-      line-height: 1.6;
-      margin-bottom: 10px;
-    }
+  .side-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 68px;
+    color: rgba(26,26,26,0.07);
+    white-space: nowrap;
+    transform: rotate(-90deg);
+    letter-spacing: -2px;
+  }
 
-    .plan-footer { display: flex; }
+  .land-use-content {
+    padding: 52px 52px 40px 40px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
 
-    .plan-link { font-size: 13px; color: var(--blue); text-decoration: none; font-weight: 500; }
-    .plan-link:hover { text-decoration: underline; }
+  .land-use-page-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 40px;
+    color: #1A1A1A;
+    line-height: 1.1;
+  }
 
-    /* Badges */
-    .badge {
-      display: inline-block;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 12px;
-      font-weight: 600;
-      white-space: nowrap;
-      line-height: 1.4;
-    }
+  .lu-block {
+    background: white;
+    border-radius: 10px;
+    padding: 22px 24px;
+    box-shadow: 0 1px 8px rgba(0,0,0,0.06);
+    flex: 1;
+  }
 
-    .badge-type-local    { background: var(--blue-bg);  color: var(--blue); }
-    .badge-type-district { background: #EDE9FE;          color: #5B21B6; }
-    .badge-type-national { background: var(--green-bg);  color: var(--green); }
-    .badge-type-other    { background: var(--gray-100);  color: var(--gray-600); }
+  .lu-level-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    margin-bottom: 6px;
+  }
 
-    .badge-status-approved  { background: var(--green-bg);  color: var(--green); }
-    .badge-status-deposited { background: var(--yellow-bg); color: var(--yellow); }
-    .badge-status-before    { background: var(--blue-bg);   color: var(--blue); }
-    .badge-status-other     { background: var(--gray-100);  color: var(--gray-600); }
+  .lu-level-divider {
+    height: 2px;
+    width: 80px;
+    margin-bottom: 14px;
+  }
 
-    /* TIMELINE */
-    .timeline {
-      position: relative;
-      padding-right: 32px;
-    }
+  .lu-main-text {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 28px;
+    font-weight: 700;
+    color: var(--navy);
+    line-height: 1.2;
+    margin-bottom: 6px;
+  }
 
-    .timeline::before {
-      content: '';
-      position: absolute;
-      right: 10px;
-      top: 8px;
-      bottom: 8px;
-      width: 2px;
-      background: var(--gold);
-      opacity: 0.4;
-    }
+  .lu-desc {
+    font-size: 14px;
+    color: var(--gray-text);
+    margin-bottom: 10px;
+    line-height: 1.5;
+  }
 
-    .timeline-item { position: relative; margin-bottom: 20px; padding-bottom: 4px; }
-    .timeline-item:last-child { margin-bottom: 0; }
+  .lu-plan-name {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--navy);
+    margin-bottom: 4px;
+  }
 
-    .timeline-dot {
-      position: absolute;
-      right: -38px;
-      top: 6px;
-      width: 16px;
-      height: 16px;
-      border-radius: 50%;
-      border: 2px solid var(--white);
-    }
+  .lu-plan-meta {
+    font-size: 13px;
+    color: var(--gray-text);
+  }
 
-    .timeline-dot.dot-approved  { background: var(--green);    box-shadow: 0 0 0 2px var(--green); }
-    .timeline-dot.dot-deposited { background: var(--gold);     box-shadow: 0 0 0 2px var(--gold); }
-    .timeline-dot.dot-before    { background: var(--blue);     box-shadow: 0 0 0 2px var(--blue); }
-    .timeline-dot.dot-other     { background: var(--gray-400); box-shadow: 0 0 0 2px var(--gray-400); }
+  .lu-area-pill {
+    display: inline-block;
+    border: 1px solid #CBD5E1;
+    border-radius: 14px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--gray-text);
+    font-family: 'Montserrat', sans-serif;
+  }
 
-    .timeline-year { font-size: 13px; font-weight: 700; color: var(--gold); display: block; margin-bottom: 2px; }
-    .timeline-plan-name { font-size: 14px; font-weight: 600; color: var(--navy); }
-    .timeline-status { font-size: 12px; color: var(--gray-400); margin-right: 8px; }
+  /* ── Slide 3: Plans ───────────────────────────────────────── */
+  #slide-plans {
+    background: var(--dark);
+    padding: 48px;
+    direction: rtl;
+  }
 
-    /* MARKET */
-    .market-grid {
-      display: grid;
-      grid-template-columns: 1fr 200px;
-      gap: 20px;
-      align-items: start;
-    }
+  .plans-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 56px;
+    color: var(--white);
+    text-transform: uppercase;
+    line-height: 1.05;
+    margin-bottom: 4px;
+  }
 
-    .market-table { width: 100%; border-collapse: collapse; font-size: 14px; }
-    .market-table thead tr { background: var(--navy); color: var(--white); }
+  .plans-section-divider {
+    width: 80px;
+    height: 2px;
+    background: var(--accent);
+    margin: 16px 0 24px;
+  }
 
-    .market-table thead th {
-      padding: 10px 14px;
-      font-weight: 600;
-      font-size: 13px;
-      text-align: right;
-    }
+  .plan-row {
+    background: var(--dark-card);
+    border-radius: 6px;
+    margin-bottom: 8px;
+    padding: 14px 16px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
 
-    .market-table thead th:first-child { border-radius: 0 6px 6px 0; }
-    .market-table thead th:last-child  { border-radius: 6px 0 0 6px; }
+  .plan-row-left {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+  }
 
-    .market-table tbody tr.data-row { border-bottom: 1px solid var(--gray-200); }
-    .market-table tbody tr.data-row:last-child { border-bottom: none; }
-    .market-table tbody tr.data-row:hover td { background: var(--gray-50); }
+  .plan-row-info {
+    flex: 1;
+    min-width: 0;
+  }
 
-    .market-table td { padding: 10px 14px; vertical-align: middle; }
-    .market-table .row-label { font-weight: 600; color: var(--navy); font-size: 13px; }
-    .market-table .price-cell { font-weight: 700; font-size: 14px; color: var(--gray-800); }
-    .market-table .price-cell.null-cell { color: var(--gray-400); font-weight: 400; }
-    .market-table tr.note-row td { font-size: 11px; color: var(--gray-400); padding-top: 6px; padding-bottom: 6px; font-style: italic; }
+  .plan-name {
+    font-size: 15px;
+    color: var(--white);
+    font-weight: 600;
+    font-family: 'Montserrat', sans-serif;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 2px;
+  }
 
-    .trend-card {
-      background: var(--gray-50);
-      border: 1px solid var(--gray-200);
-      border-radius: 10px;
-      padding: 20px 16px;
-      text-align: center;
-    }
+  .plan-meta {
+    font-size: 12px;
+    color: var(--light-text);
+    font-family: 'Montserrat', sans-serif;
+  }
 
-    .trend-arrow { font-size: 36px; line-height: 1; margin-bottom: 8px; display: block; }
-    .trend-arrow.up   { color: var(--green); }
-    .trend-arrow.down { color: var(--red); }
-    .trend-arrow.stable { color: var(--gray-400); }
+  .plan-status-col {
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    padding-top: 2px;
+  }
 
-    .trend-pct { font-size: 24px; font-weight: 700; display: block; margin-bottom: 6px; line-height: 1; }
-    .trend-pct.up   { color: var(--green); }
-    .trend-pct.down { color: var(--red); }
-    .trend-pct.stable { color: var(--gray-600); }
+  /* Border colors by plan type */
+  .plan-row-local    { border-right: 3px solid var(--teal); }
+  .plan-row-district { border-right: 3px solid var(--accent); }
+  .plan-row-national { border-right: 3px solid var(--gray-text); }
 
-    .trend-label { font-size: 12px; color: var(--gray-400); line-height: 1.4; }
+  .plans-overflow {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--light-text);
+    font-family: 'Montserrat', sans-serif;
+    text-align: center;
+  }
 
-    /* AI ANALYSIS */
-    .ai-section {
-      background: var(--gold-light);
-      border-right: 4px solid var(--gold);
-      border-radius: 12px;
-      padding: 22px 24px 22px 28px;
-      margin-bottom: 20px;
-    }
+  /* ── Slide 4: Market Data ─────────────────────────────────── */
+  #slide-market {
+    display: flex;
+    flex-direction: row;
+  }
 
-    .ai-label {
-      display: block;
-      font-size: 11px;
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      color: var(--gold);
-      font-weight: 600;
-      margin-bottom: 10px;
-    }
+  .market-left {
+    width: 45%;
+    background: var(--dark);
+    padding: 52px 40px;
+    display: flex;
+    flex-direction: column;
+  }
 
-    .ai-text {
-      font-size: 15px;
-      color: var(--navy);
-      line-height: 1.8;
-      white-space: pre-wrap;
-    }
+  .market-right {
+    width: 55%;
+    background: var(--light-bg);
+    padding: 52px 36px;
+    display: flex;
+    flex-direction: column;
+  }
 
-    /* FOOTER */
-    .footer { margin-top: 24px; }
+  .market-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 48px;
+    color: var(--white);
+    line-height: 1.05;
+    margin-bottom: 4px;
+  }
 
-    .footer-disclaimer {
-      background: var(--yellow-bg);
-      border: 1px solid #FDE68A;
-      border-radius: 8px;
-      padding: 14px 18px;
-      margin-bottom: 16px;
-    }
+  .market-divider {
+    width: 60px;
+    height: 2px;
+    background: var(--accent);
+    margin: 16px 0 28px;
+  }
 
-    .footer-disclaimer p { font-size: 12px; color: var(--yellow); line-height: 1.6; }
+  .market-stat-block {
+    margin-bottom: 22px;
+  }
 
-    .footer-info {
-      border-top: 1px solid var(--gray-200);
-      padding-top: 14px;
-      text-align: center;
-      font-size: 12px;
-      color: var(--gray-400);
-      line-height: 1.8;
-    }
+  .market-stat-value {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 36px;
+    color: var(--white);
+    line-height: 1;
+    direction: ltr;
+    text-align: left;
+  }
 
-    /* RESPONSIVE */
-    @media (max-width: 640px) {
-      .header-inner { flex-direction: column; gap: 12px; }
-      .header-right { text-align: right; min-width: unset; }
-      .section-body { padding: 16px; }
-      .facts-bar { grid-template-columns: repeat(2, 1fr); }
-      .fact-item:nth-child(2) { border-left: none; }
-      .fact-item:nth-child(even) { border-left: none; }
-      .yiud-grid { grid-template-columns: 1fr; }
-      .plan-card-top { flex-direction: column; }
-      .market-grid { grid-template-columns: 1fr; }
-    }
+  .market-stat-label {
+    font-size: 12px;
+    color: var(--light-text);
+    font-family: 'Montserrat', sans-serif;
+    margin-top: 2px;
+  }
 
-    @media print {
-      body { background: white; }
-      .page-wrapper { padding: 0; max-width: 100%; }
-      .plan-card:hover { box-shadow: none; }
-      .header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .market-table thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-      .facts-bar { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    }
-  </style>
+  .market-trend-card {
+    background: var(--dark-card);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-top: auto;
+  }
+
+  .market-trend-value {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 32px;
+    line-height: 1;
+  }
+  .market-trend-value.up   { color: var(--green); }
+  .market-trend-value.down { color: #EF4444; }
+  .market-trend-value.flat { color: var(--light-text); }
+
+  .market-trend-label {
+    font-size: 12px;
+    color: var(--light-text);
+    font-family: 'Montserrat', sans-serif;
+    margin-top: 4px;
+  }
+
+  .market-table-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 600;
+    font-size: 14px;
+    color: var(--navy);
+    margin-bottom: 14px;
+  }
+
+  .market-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+    font-family: 'Montserrat', sans-serif;
+    direction: rtl;
+  }
+
+  .market-table th {
+    background: var(--navy);
+    color: var(--white);
+    padding: 9px 12px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .market-table td {
+    padding: 9px 12px;
+    text-align: right;
+    color: var(--navy);
+    font-size: 13px;
+    border-bottom: 1px solid #E5E7EB;
+  }
+
+  .market-table tr:nth-child(even) td { background: #F3F4F6; }
+  .market-table tr:nth-child(odd)  td { background: var(--white); }
+
+  .market-table td.null-val { color: var(--gray-text); }
+
+  .market-note {
+    margin-top: auto;
+    font-size: 11px;
+    color: var(--gray-text);
+    font-family: 'Montserrat', sans-serif;
+    padding-top: 16px;
+  }
+
+  /* ── Slide 5: AI Analysis ─────────────────────────────────── */
+  #slide-ai {
+    background: var(--light-bg);
+    padding: 52px 52px 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .ai-page-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 300;
+    font-size: 50px;
+    color: var(--navy);
+    line-height: 1.1;
+    margin-bottom: 4px;
+  }
+
+  .ai-logo-title {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 50px;
+    color: var(--navy);
+    line-height: 1.1;
+  }
+
+  .ai-logo-title .accent { color: var(--accent); }
+
+  .ai-section-divider {
+    width: 80px;
+    height: 2px;
+    background: var(--accent);
+    margin: 18px 0 28px;
+  }
+
+  .ai-analysis-box {
+    background: var(--white);
+    border-right: 4px solid var(--accent);
+    border-radius: 8px;
+    padding: 28px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+    flex: 1;
+    margin-bottom: 20px;
+  }
+
+  .ai-analysis-label {
+    font-family: 'Montserrat', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2.5px;
+    color: var(--accent);
+    margin-bottom: 12px;
+  }
+
+  .ai-analysis-text {
+    font-family: 'Frank Ruhl Libre', serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--navy);
+    line-height: 1.9;
+  }
+
+  .ai-disclaimer {
+    background: rgba(232,89,12,0.08);
+    border: 1px solid rgba(232,89,12,0.2);
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 12px;
+    color: var(--gray-text);
+    font-family: 'Montserrat', sans-serif;
+    line-height: 1.6;
+    margin-bottom: 20px;
+  }
+
+  .ai-footer {
+    border-top: 1px solid #E5E7EB;
+    padding: 14px 0;
+    font-size: 12px;
+    color: var(--gray-text);
+    font-family: 'Montserrat', sans-serif;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .ai-footer-logo {
+    font-family: 'Montserrat', sans-serif;
+    font-weight: 700;
+    font-size: 14px;
+    color: var(--navy);
+  }
+
+  .ai-footer-logo .accent { color: var(--accent); }
+
+  .ai-footer-sep {
+    color: #D1D5DB;
+  }
+</style>
 </head>
 <body>
 
-<div class="page-wrapper">
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SLIDE 1: COVER                                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="slide" id="slide-cover">
 
-  <!-- 1. HEADER -->
-  <header class="header">
-    <div class="header-inner">
-      <div class="header-left">
-        <div class="header-logo">kark<span class="logo-a">A</span>i</div>
-        <div class="header-divider"></div>
-        <div class="header-title">
-          דוח תכנוני —
-          גוש {{ gush }}, חלקה {{ helka }}{% if city %} · {{ city }}{% endif %}
-        </div>
-      </div>
-      <div class="header-right">
-        <span class="meta-line">{{ created_at }}</span>
-        <span class="meta-line">גוש {{ gush }} / חלקה {{ helka }}</span>
-        {% if city %}<span class="meta-line">{{ city }}</span>{% endif %}
-      </div>
-    </div>
-  </header>
-
-  <!-- 2. KEY FACTS BAR -->
-  <div class="facts-bar">
-    <div class="fact-item">
-      <span class="fact-label">גוש</span>
-      <span class="fact-value">{{ gush }}</span>
-    </div>
-    <div class="fact-item">
-      <span class="fact-label">חלקה</span>
-      <span class="fact-value">{{ helka }}</span>
-    </div>
-    <div class="fact-item">
-      <span class="fact-label">שטח</span>
-      <span class="fact-value">
-        {%- if area_sqm %}{{ "{:,.0f}".format(area_sqm) }} מ"ר{%- else %}—{%- endif %}
-      </span>
-    </div>
-    <div class="fact-item">
-      <span class="fact-label">עיר</span>
-      <span class="fact-value">{{ city if city else "—" }}</span>
-    </div>
-  </div>
-
-  <!-- 3. MAP -->
-  <div class="map-section">
-    <div id="map"></div>
-    <div class="map-attribution">
-      מקור מפה: OpenStreetMap contributors · govmap.gov.il
-    </div>
-  </div>
-
-  <!-- 4. LAND USE -->
-  {% if land_use_items %}
-  <div class="section">
-    <div class="section-body">
-      <h2 class="section-heading">ייעודי קרקע</h2>
-      <div class="yiud-grid">
-        {% for item in land_use_items %}
-        <div class="yiud-card">
-          <span class="yiud-name">{{ item.yiud }}</span>
-          {%- if item.yiud_explained %}
-          <span class="yiud-explained">{{ item.yiud_explained }}</span>
-          {%- endif %}
-          {%- if item.area_dunam %}
-          <span class="yiud-area">{{ "%.2f"|format(item.area_dunam) }} דונם</span>
-          {%- endif %}
-        </div>
-        {% endfor %}
-      </div>
-    </div>
+  {% if satellite_b64 %}
+  <div class="map-container">
+    <img src="data:image/png;base64,{{ satellite_b64 }}" alt="תמונת לוויין">
+    {% if shape_wkt and shape_wkt_pixels %}
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="none">
+      <polygon
+        points="{{ shape_wkt_pixels }}"
+        fill="rgba(232,89,12,0.15)"
+        stroke="#E8590C"
+        stroke-width="2.5"
+      />
+    </svg>
+    {% endif %}
   </div>
   {% endif %}
 
-  <!-- 5. PLANS -->
-  {% if plans %}
-  <div class="section">
-    <div class="section-body">
-      <h2 class="section-heading">תכניות בנייה</h2>
+  <div class="cover-overlay"></div>
 
-      {% for plan in plans %}
-      {%- set status_lower = (plan.status_display or '') | lower -%}
-      {%- if 'אושר' in status_lower or 'תקפ' in status_lower -%}
-        {%- set status_cls = 'status-approved' -%}
-        {%- set badge_status_cls = 'badge-status-approved' -%}
-      {%- elif 'הפקד' in status_lower -%}
-        {%- set status_cls = 'status-deposited' -%}
-        {%- set badge_status_cls = 'badge-status-deposited' -%}
-      {%- elif 'לפני' in status_lower or 'הכנה' in status_lower -%}
-        {%- set status_cls = 'status-before' -%}
-        {%- set badge_status_cls = 'badge-status-before' -%}
-      {%- else -%}
-        {%- set status_cls = 'status-other' -%}
-        {%- set badge_status_cls = 'badge-status-other' -%}
-      {%- endif -%}
-      {%- set type_order = (plan.plan_type_order | string) -%}
-      {%- if type_order == '3' -%}
-        {%- set type_cls = 'badge-type-local' -%}
-        {%- set type_label = 'מקומית' -%}
-      {%- elif type_order == '2' -%}
-        {%- set type_cls = 'badge-type-district' -%}
-        {%- set type_label = 'מחוזית' -%}
-      {%- elif type_order == '1' -%}
-        {%- set type_cls = 'badge-type-national' -%}
-        {%- set type_label = 'ארצית' -%}
-      {%- else -%}
-        {%- set type_cls = 'badge-type-other' -%}
-        {%- set type_label = plan.plan_charactor_name or 'אחר' -%}
-      {%- endif -%}
-
-      <div class="plan-card {{ status_cls }}">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge {{ type_cls }}">{{ type_label }}</span>
-            <span class="plan-name">{{ plan.pl_name or plan.mavat_name or plan.pl_number }}</span>
-          </div>
-          {%- if plan.status_display %}
-          <span class="badge {{ badge_status_cls }}">{{ plan.status_display }}</span>
-          {%- endif %}
+  <div class="cover-content">
+    <!-- Logo top-right -->
+    <div class="cover-header">
+      <div>
+        <div class="logo">
+          kark<span class="accent">A</span>i
         </div>
+        <div class="logo-divider"></div>
+      </div>
+    </div>
 
+    <!-- Main content bottom-left -->
+    <div class="cover-body">
+      <div class="cover-label">דוח תכנוני</div>
+      <div class="cover-divider"></div>
+
+      <div class="cover-title">גוש {{ gush }}</div>
+      <div class="cover-subtitle">
+        חלקה {{ helka }}{% if city %} · {{ city }}{% endif %}
+      </div>
+
+      <div class="cover-pills">
+        {% if land_use_items %}
+        <span class="pill pill-outline">🏠 {{ land_use_items[0].yiud }}</span>
+        {% endif %}
+        {% if area_sqm %}
+        <span class="pill pill-outline">📐 {{ "{:,.0f}".format(area_sqm) }} מ"ר</span>
+        {% endif %}
+        <span class="pill pill-outline">🗓 {{ created_at[:4] if created_at else '2026' }}</span>
+        {% if city %}
+        <span class="pill pill-outline">📍 {{ city }}</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SLIDE 2: LAND USE                                          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="slide" id="slide-land-use">
+
+  <div class="side-title-wrapper">
+    <div class="side-title">ייעודי קרקע</div>
+  </div>
+
+  <div class="land-use-content">
+    <div class="land-use-page-title">ייעודי קרקע</div>
+
+    <!-- Level 1: The parcel itself -->
+    <div class="lu-block">
+      <div class="lu-level-label" style="color: var(--accent);">החלקה עצמה</div>
+      <div class="lu-level-divider" style="background: var(--accent);"></div>
+      {% if land_use_items %}
+        {% set main_lu = land_use_items[0] %}
+        <div class="lu-main-text">{{ main_lu.yiud }}</div>
+        {% if main_lu.yiud_explained %}
+        <div class="lu-desc">{{ main_lu.yiud_explained }}</div>
+        {% endif %}
+        {% if main_lu.area_dunam %}
+        <span class="lu-area-pill">{{ main_lu.area_dunam }} דונם</span>
+        {% elif area_dunam %}
+        <span class="lu-area-pill">{{ area_dunam }} דונם</span>
+        {% endif %}
+        {% if land_use_items|length > 1 %}
+          <div style="margin-top: 12px; display: flex; flex-wrap: wrap; gap: 8px;">
+            {% for lu in land_use_items[1:4] %}
+            <span class="lu-area-pill">{{ lu.yiud }}{% if lu.area_dunam %} · {{ lu.area_dunam }} ד'{% endif %}</span>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% else %}
+        <div class="lu-desc" style="color: var(--gray-text);">לא נמצאו נתוני ייעוד</div>
+      {% endif %}
+    </div>
+
+    <!-- Level 2: Local plan -->
+    {% set local_plans = plans | selectattr("plan_type_order", "eq", 1) | list %}
+    <div class="lu-block">
+      <div class="lu-level-label" style="color: var(--teal);">תכנית מקומית</div>
+      <div class="lu-level-divider" style="background: var(--teal);"></div>
+      {% if local_plans %}
+        {% set lp = local_plans[0] %}
+        <div class="lu-plan-name">{{ lp.pl_name or lp.mavat_name }}</div>
+        <div class="lu-plan-meta">
+          {{ lp.pl_number }}{% if lp.date_display %} · {{ lp.date_display }}{% endif %}
+          {% if lp.status_display %} · {{ lp.status_display }}{% endif %}
+        </div>
+        {% if lp.pl_objectives %}
+        <div class="lu-desc" style="margin-top: 8px; font-size: 13px;">{{ lp.pl_objectives[:150] }}{% if lp.pl_objectives|length > 150 %}...{% endif %}</div>
+        {% endif %}
+      {% else %}
+        <div class="lu-desc" style="color: var(--gray-text);">לא נמצאה תכנית מקומית</div>
+      {% endif %}
+    </div>
+
+    <!-- Level 3: District / National -->
+    {% set higher_plans = plans | selectattr("plan_type_order", "ne", 1) | sort(attribute="plan_type_order") | list %}
+    <div class="lu-block">
+      <div class="lu-level-label" style="color: var(--gray-text);">תכנית ארצית / מחוזית</div>
+      <div class="lu-level-divider" style="background: var(--gray-text);"></div>
+      {% if higher_plans %}
+        {% set hp = higher_plans[0] %}
+        <div class="lu-plan-name">{{ hp.pl_name or hp.mavat_name }}</div>
+        <div class="lu-plan-meta">
+          {{ hp.pl_number }}{% if hp.date_display %} · {{ hp.date_display }}{% endif %}
+          {% if hp.status_display %} · {{ hp.status_display }}{% endif %}
+        </div>
+        {% if hp.pl_objectives %}
+        <div class="lu-desc" style="margin-top: 8px; font-size: 13px;">{{ hp.pl_objectives[:150] }}{% if hp.pl_objectives|length > 150 %}...{% endif %}</div>
+        {% endif %}
+      {% else %}
+        <div class="lu-desc" style="color: var(--gray-text);">לא נמצאה תכנית ארצית / מחוזית</div>
+      {% endif %}
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SLIDE 3: PLANS                                             -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="slide" id="slide-plans">
+  <div class="plans-title">תכניות</div>
+  <div class="plans-title">בנייה</div>
+  <div class="plans-section-divider"></div>
+
+  {% set display_plans = plans[:8] %}
+  {% set overflow_count = (plans|length - 8) if plans|length > 8 else 0 %}
+
+  {% for plan in display_plans %}
+  {% set type_class = "plan-row-local" if plan.plan_type_order == 1 else ("plan-row-district" if plan.plan_type_order == 2 else "plan-row-national") %}
+  <div class="plan-row {{ type_class }}">
+    <div class="plan-row-left">
+      <!-- Type badge -->
+      {% if plan.plan_type_order == 1 %}
+        <span class="badge badge-teal">מקומית</span>
+      {% elif plan.plan_type_order == 2 %}
+        <span class="badge badge-orange">מחוזית</span>
+      {% else %}
+        <span class="badge badge-gray">ארצית</span>
+      {% endif %}
+      <div class="plan-row-info">
+        <div class="plan-name">{{ plan.pl_name or plan.mavat_name or "תכנית ללא שם" }}</div>
         <div class="plan-meta">
-          {{ plan.pl_number }}{%- if plan.date_display %} · {{ plan.date_display }}{%- endif %}
+          {{ plan.pl_number }}{% if plan.date_display %} · {{ plan.date_display }}{% endif %}
+          {% if plan.plan_charactor_name %} · {{ plan.plan_charactor_name }}{% endif %}
         </div>
-
-        {%- if plan.pl_objectives %}
-        <div class="plan-objectives">מטרות: {{ plan.pl_objectives }}</div>
-        {%- endif %}
-
-        {%- if plan.pl_url %}
-        <div class="plan-footer">
-          <a href="{{ plan.pl_url }}" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-        {%- endif %}
-      </div>
-      {% endfor %}
-
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- 6. TIMELINE -->
-  {% if timeline_plans %}
-  <div class="section">
-    <div class="section-body">
-      <h2 class="section-heading">ציר זמן תכנוני</h2>
-      <div class="timeline">
-        {% for plan in timeline_plans %}
-        {%- set status_lower = (plan.status_display or '') | lower -%}
-        {%- if 'אושר' in status_lower or 'תקפ' in status_lower -%}
-          {%- set dot_cls = 'dot-approved' -%}
-        {%- elif 'הפקד' in status_lower -%}
-          {%- set dot_cls = 'dot-deposited' -%}
-        {%- elif 'לפני' in status_lower or 'הכנה' in status_lower -%}
-          {%- set dot_cls = 'dot-before' -%}
-        {%- else -%}
-          {%- set dot_cls = 'dot-other' -%}
-        {%- endif -%}
-        <div class="timeline-item">
-          <div class="timeline-dot {{ dot_cls }}"></div>
-          {%- if plan.date_display %}
-          <span class="timeline-year">{{ plan.date_display }}</span>
-          {%- endif %}
-          <span class="timeline-plan-name">{{ plan.pl_name or plan.pl_number }}</span>
-          {%- if plan.status_display %}
-          <span class="timeline-status">· {{ plan.status_display }}</span>
-          {%- endif %}
-        </div>
-        {% endfor %}
       </div>
     </div>
+    <div class="plan-status-col">
+      {% if plan.status_display %}
+        {% if "מאושר" in plan.status_display or "אושר" in plan.status_display %}
+          <span class="badge badge-green">{{ plan.status_display }}</span>
+        {% elif "הפקד" in plan.status_display %}
+          <span class="badge badge-yellow">{{ plan.status_display }}</span>
+        {% else %}
+          <span class="badge badge-gray">{{ plan.status_display }}</span>
+        {% endif %}
+      {% endif %}
+>
   </div>
+  {% endfor %}
+
+  {% if overflow_count > 0 %}
+  <div class="plans-overflow">ועוד {{ overflow_count }} תכניות נוספות</div>
   {% endif %}
+</div>
 
-  <!-- 7. MARKET DATA -->
-  {% if re %}
-  <div class="section">
-    <div class="section-body">
-      <h2 class="section-heading">נתוני שוק</h2>
-      <div class="market-grid">
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SLIDE 4: MARKET DATA                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="slide" id="slide-market">
 
-        <div>
-          <table class="market-table">
-            <thead>
-              <tr>
-                <th>אזור</th>
-                <th>שנה 1</th>
-                <th>שנות 3</th>
-                <th>שנות 5</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="data-row">
-                <td class="row-label">החלקה</td>
-                <td class="price-cell {%- if not re.parcel_1y %} null-cell{%- endif %}">
-                  {%- if re.parcel_1y %}&#8362;{{ "{:,.0f}".format(re.parcel_1y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.parcel_3y %} null-cell{%- endif %}">
-                  {%- if re.parcel_3y %}&#8362;{{ "{:,.0f}".format(re.parcel_3y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.parcel_5y %} null-cell{%- endif %}">
-                  {%- if re.parcel_5y %}&#8362;{{ "{:,.0f}".format(re.parcel_5y) }}{%- else %}—{%- endif %}
-                </td>
-              </tr>
-              <tr class="data-row">
-                <td class="row-label">שכונה</td>
-                <td class="price-cell {%- if not re.neighborhood_1y %} null-cell{%- endif %}">
-                  {%- if re.neighborhood_1y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_1y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.neighborhood_3y %} null-cell{%- endif %}">
-                  {%- if re.neighborhood_3y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_3y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.neighborhood_5y %} null-cell{%- endif %}">
-                  {%- if re.neighborhood_5y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_5y) }}{%- else %}—{%- endif %}
-                </td>
-              </tr>
-              <tr class="data-row">
-                <td class="row-label">עיר</td>
-                <td class="price-cell {%- if not re.settlement_1y %} null-cell{%- endif %}">
-                  {%- if re.settlement_1y %}&#8362;{{ "{:,.0f}".format(re.settlement_1y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.settlement_3y %} null-cell{%- endif %}">
-                  {%- if re.settlement_3y %}&#8362;{{ "{:,.0f}".format(re.settlement_3y) }}{%- else %}—{%- endif %}
-                </td>
-                <td class="price-cell {%- if not re.settlement_5y %} null-cell{%- endif %}">
-                  {%- if re.settlement_5y %}&#8362;{{ "{:,.0f}".format(re.settlement_5y) }}{%- else %}—{%- endif %}
-                </td>
-              </tr>
-              {%- if re.parcel_deal_count or re.neighborhood_deal_count %}
-              <tr class="note-row">
-                <td colspan="4">
-                  מבוסס על
-                  {%- if re.parcel_deal_count %} {{ re.parcel_deal_count }} עסקאות בחלקה{%- endif %}
-                  {%- if re.neighborhood_deal_count %}{%- if re.parcel_deal_count %},{%- endif %} {{ re.neighborhood_deal_count }} עסקאות בשכונה{%- endif %}
-                </td>
-              </tr>
-              {%- endif %}
-            </tbody>
-          </table>
-        </div>
+  <!-- Left dark half -->
+  <div class="market-left">
+    <div class="market-title">נתוני</div>
+    <div class="market-title">שוק</div>
+    <div class="market-divider"></div>
 
-        <div>
-          {%- set direction = re.trend_direction or 'unknown' -%}
-          <div class="trend-card">
-            {%- if direction == 'up' %}
-            <span class="trend-arrow up">&#9650;</span>
-            {%- elif direction == 'down' %}
-            <span class="trend-arrow down">&#9660;</span>
-            {%- else %}
-            <span class="trend-arrow stable">&#8594;</span>
-            {%- endif %}
-
-            {%- if re.trend_pct is not none and re.trend_pct is not undefined %}
-            <span class="trend-pct {{ direction }}">
-              {%- if direction == 'up' %}+{%- endif %}{{ "%.1f"|format(re.trend_pct) }}%
-            </span>
-            {%- else %}
-            <span class="trend-pct stable">—</span>
-            {%- endif %}
-
-            <span class="trend-label">מגמת 5 שנים<br>שכונה</span>
-          </div>
-        </div>
-
+    {% if re %}
+    <!-- Parcel price per sqm -->
+    <div class="market-stat-block">
+      <div class="market-stat-value">
+        {% if re.price_per_sqm_parcel %}
+          ₪{{ "{:,.0f}".format(re.price_per_sqm_parcel) }}
+        {% else %}—{% endif %}
       </div>
+      <div class="market-stat-label">למ"ר · חלקה</div>
+    </div>
+
+    <!-- Neighborhood price per sqm -->
+    <div class="market-stat-block">
+      <div class="market-stat-value">
+        {% if re.price_per_sqm_neighborhood %}
+          ₪{{ "{:,.0f}".format(re.price_per_sqm_neighborhood) }}
+        {% else %}—{% endif %}
+      </div>
+      <div class="market-stat-label">למ"ר · שכונה</div>
+    </div>
+
+    <!-- City price per sqm -->
+    <div class="market-stat-block">
+      <div class="market-stat-value">
+        {% if re.price_per_sqm_city %}
+          ₪{{ "{:,.0f}".format(re.price_per_sqm_city) }}
+        {% else %}—{% endif %}
+      </div>
+      <div class="market-stat-label">למ"ר · עיר</div>
+    </div>
+
+    <!-- Trend card -->
+    <div class="market-trend-card">
+      {% if re.trend_pct is not none %}
+        {% set trend_class = "up" if re.trend_pct > 0 else ("down" if re.trend_pct < 0 else "flat") %}
+        {% set trend_arrow = "▲" if re.trend_pct > 0 else ("▼" if re.trend_pct < 0 else "→") %}
+        <div class="market-trend-value {{ trend_class }}">
+          {{ trend_arrow }} {{ "{:+.0f}%".format(re.trend_pct) }}
+        </div>
+      {% else %}
+        <div class="market-trend-value flat">—</div>
+      {% endif %}
+      <div class="market-trend-label">מגמת 5 שנים</div>
+    </div>
+
+    {% else %}
+    <div style="color: var(--light-text); font-size: 14px; font-family: 'Montserrat', sans-serif; margin-top: 24px;">
+      נתוני שוק לא זמינים
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Right light half -->
+  <div class="market-right">
+    <div class="market-table-title">טבלת השוואת מחירים</div>
+    <table class="market-table">
+      <thead>
+        <tr>
+          <th>אזור</th>
+          <th>1 שנה</th>
+          <th>3 שנים</th>
+          <th>5 שנים</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>החלקה</strong></td>
+          <td class="{% if not re or not re.price_1y_parcel %}null-val{% endif %}">
+            {% if re and re.price_1y_parcel %}₪{{ "{:,.0f}".format(re.price_1y_parcel) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_3y_parcel %}null-val{% endif %}">
+            {% if re and re.price_3y_parcel %}₪{{ "{:,.0f}".format(re.price_3y_parcel) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_5y_parcel %}null-val{% endif %}">
+            {% if re and re.price_5y_parcel %}₪{{ "{:,.0f}".format(re.price_5y_parcel) }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td><strong>שכונה</strong></td>
+          <td class="{% if not re or not re.price_1y_neighborhood %}null-val{% endif %}">
+            {% if re and re.price_1y_neighborhood %}₪{{ "{:,.0f}".format(re.price_1y_neighborhood) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_3y_neighborhood %}null-val{% endif %}">
+            {% if re and re.price_3y_neighborhood %}₪{{ "{:,.0f}".format(re.price_3y_neighborhood) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_5y_neighborhood %}null-val{% endif %}">
+            {% if re and re.price_5y_neighborhood %}₪{{ "{:,.0f}".format(re.price_5y_neighborhood) }}{% else %}—{% endif %}
+          </td>
+        </tr>
+        <tr>
+          <td><strong>עיר</strong></td>
+          <td class="{% if not re or not re.price_1y_city %}null-val{% endif %}">
+            {% if re and re.price_1y_city %}₪{{ "{:,.0f}".format(re.price_1y_city) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_3y_city %}null-val{% endif %}">
+            {% if re and re.price_3y_city %}₪{{ "{:,.0f}".format(re.price_3y_city) }}{% else %}—{% endif %}
+          </td>
+          <td class="{% if not re or not re.price_5y_city %}null-val{% endif %}">
+            {% if re and re.price_5y_city %}₪{{ "{:,.0f}".format(re.price_5y_city) }}{% else %}—{% endif %}
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="market-note">
+      {% if re and re.transaction_count %}
+      * מבוסס על {{ re.transaction_count }} עסקאות (5 שנים) · מקור: מדלן / רמ"י
+      {% else %}
+      * נתוני שוק מבוססים על עסקאות נדל"ן רשומות · המחירים הם ממוצעים בלבד
+      {% endif %}
     </div>
   </div>
-  {% endif %}
-
-  <!-- 8. AI ANALYSIS -->
-  {%- if ai_analysis and 'לא זמין' not in ai_analysis %}
-  <div class="ai-section">
-    <span class="ai-label">ניתוח karkAi</span>
-    <div class="ai-text">{{ ai_analysis }}</div>
-  </div>
-  {%- endif %}
-
-  <!-- 9. FOOTER -->
-  <footer class="footer">
-    <div class="footer-disclaimer">
-      <p>
-        <strong>הצהרת אחריות:</strong> דוח זה נוצר אוטומטית על בסיס נתוני ממשלה ציבוריים בלבד
-        ואינו מהווה ייעוץ משפטי, תכנוני או השקעתי.
-        המידע מוצג כפי שהוא ועשוי להיות חלקי. יש לאמת נתונים מול הרשויות המוסמכות לפני קבלת החלטות.
-      </p>
-    </div>
-    <div class="footer-info">
-      karka.ai &nbsp;·&nbsp; דוח נוצר אוטומטית &nbsp;·&nbsp; {{ created_at }}<br>
-      מקורות: govmap.gov.il, iplan.gov.il
-    </div>
-  </footer>
 
 </div>
 
-<script>
-(function() {
-  var centX = {{ centroid_x | default(0) }};
-  var centY = {{ centroid_y | default(0) }};
-  var wkt   = {{ shape_wkt | tojson }};
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- SLIDE 5: AI ANALYSIS                                       -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="slide" id="slide-ai">
 
-  // Convert EPSG:3857 to WGS84
-  function merc2wgs(x, y) {
-    var lng = (x / 20037508.342) * 180;
-    var lat = Math.atan(Math.exp((y / 20037508.342) * Math.PI)) * (360 / Math.PI) - 90;
-    return [lat, lng];
-  }
+  <div class="ai-page-title">ניתוח</div>
+  <div class="ai-logo-title">kark<span class="accent">A</span>i</div>
+  <div class="ai-section-divider"></div>
 
-  var center = (centX && centY) ? merc2wgs(centX, centY) : [31.7683, 35.2137];
+  <div class="ai-analysis-box">
+    <div class="ai-analysis-label">ניתוח AI</div>
+    <div class="ai-analysis-text">
+      {{ ai_analysis or "ניתוח AI לא זמין עבור חלקה זו." }}
+    </div>
+  </div>
 
-  var map = L.map('map', {
-    center: center,
-    zoom: 16,
-    zoomControl: true,
-    attributionControl: false
-  });
+  <div class="ai-disclaimer">
+    המידע בדוח זה מוצג לצרכי אינפורמציה בלבד ואינו מהווה ייעוץ משפטי, כלכלי או תכנוני.
+    הנתונים התכנוניים מקורם ב-iplan.gov.il וב-govmap.gov.il ועשויים שלא לשקף שינויים אחרונים.
+    נתוני שוק הם ממוצעים סטטיסטיים בלבד. אין להסתמך על דוח זה כבסיס יחיד לקבלת החלטות השקעה.
+    karkAi אינה אחראית לטעויות, השמטות, או פרשנויות שגויות של המידע המוצג.
+  </div>
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
+  <div class="ai-footer">
+    <span class="ai-footer-logo">kark<span class="accent">A</span>i</span>
+    <span class="ai-footer-sep">·</span>
+    <span>{{ created_at }}</span>
+    <span class="ai-footer-sep">·</span>
+    <span>govmap.gov.il</span>
+    <span class="ai-footer-sep">·</span>
+    <span>iplan.gov.il</span>
+  </div>
 
-  // Parse WKT polygon and draw
-  if (wkt) {
-    try {
-      var coords = [];
-      var m = wkt.match(/POLYGON\s*\(\(([^)]+)\)/i);
-      if (!m) m = wkt.match(/MULTIPOLYGON\s*\(\(\(([^)]+)\)/i);
-      if (m) {
-        var pairs = m[1].trim().split(',');
-        pairs.forEach(function(pair) {
-          var parts = pair.trim().split(/\s+/);
-          if (parts.length >= 2) {
-            var pt = merc2wgs(parseFloat(parts[0]), parseFloat(parts[1]));
-            coords.push(pt);
-          }
-        });
-        if (coords.length > 2) {
-          var polygon = L.polygon(coords, {
-            color: '#C5A55A',
-            weight: 2.5,
-            opacity: 0.95,
-            fillColor: '#C5A55A',
-            fillOpacity: 0.18
-          }).addTo(map);
-          map.fitBounds(polygon.getBounds(), { padding: [32, 32] });
-        }
-      }
-    } catch(e) {
-      console.warn('WKT parse error:', e);
-    }
-  }
+</div>
 
-  // Marker at centroid
-  if (centX && centY) {
-    var goldIcon = L.divIcon({
-      html: '<div style="width:12px;height:12px;background:#C5A55A;border:2.5px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,0.4);"></div>',
-      iconSize: [12, 12],
-      iconAnchor: [6, 6],
-      className: ''
-    });
-    L.marker(center, { icon: goldIcon })
-      .addTo(map)
-      .bindPopup('<div dir="rtl" style="font-family:serif;font-size:13px;"><strong>גוש {{ gush }}, חלקה {{ helka }}</strong>{% if city %}<br>{{ city }}{% endif %}</div>');
-  }
-})();
-</script>
 </body>
 </html>
