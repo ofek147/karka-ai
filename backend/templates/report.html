@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>דוח תכנוני — גוש 6672, חלקה 52 · הרצליה</title>
+  <title>דוח תכנוני — גוש {{ gush }}, חלקה {{ helka }}{% if city %} · {{ city }}{% endif %}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Frank+Ruhl+Libre:wght@300;400;500;700;900&display=swap" rel="stylesheet">
@@ -459,13 +459,13 @@
         <div class="header-divider"></div>
         <div class="header-title">
           דוח תכנוני —
-          גוש 6672, חלקה 52 · הרצליה
+          גוש {{ gush }}, חלקה {{ helka }}{% if city %} · {{ city }}{% endif %}
         </div>
       </div>
       <div class="header-right">
-        <span class="meta-line">03/08/2026 21:25</span>
-        <span class="meta-line">גוש 6672 / חלקה 52</span>
-        <span class="meta-line">הרצליה</span>
+        <span class="meta-line">{{ created_at }}</span>
+        <span class="meta-line">גוש {{ gush }} / חלקה {{ helka }}</span>
+        {% if city %}<span class="meta-line">{{ city }}</span>{% endif %}
       </div>
     </div>
   </header>
@@ -474,20 +474,21 @@
   <div class="facts-bar">
     <div class="fact-item">
       <span class="fact-label">גוש</span>
-      <span class="fact-value">6672</span>
+      <span class="fact-value">{{ gush }}</span>
     </div>
     <div class="fact-item">
       <span class="fact-label">חלקה</span>
-      <span class="fact-value">52</span>
+      <span class="fact-value">{{ helka }}</span>
     </div>
     <div class="fact-item">
       <span class="fact-label">שטח</span>
-      <span class="fact-value">6,570 מ"ר
+      <span class="fact-value">
+        {%- if area_sqm %}{{ "{:,.0f}".format(area_sqm) }} מ"ר{%- else %}—{%- endif %}
       </span>
     </div>
     <div class="fact-item">
       <span class="fact-label">עיר</span>
-      <span class="fact-value">הרצליה</span>
+      <span class="fact-value">{{ city if city else "—" }}</span>
     </div>
   </div>
 
@@ -500,259 +501,129 @@
   </div>
 
   <!-- 4. LAND USE -->
-  
+  {% if land_use_items %}
   <div class="section">
     <div class="section-body">
       <h2 class="section-heading">ייעודי קרקע</h2>
       <div class="yiud-grid">
-        
+        {% for item in land_use_items %}
         <div class="yiud-card">
-          <span class="yiud-name">דרך מוצעת</span>
-          <span class="yiud-explained">דרך מוצעת (שמורת דרך עתידית — לא ניתן לבנות)</span>
-          <span class="yiud-area">1.62 דונם</span>
+          <span class="yiud-name">{{ item.yiud }}</span>
+          {%- if item.yiud_explained %}
+          <span class="yiud-explained">{{ item.yiud_explained }}</span>
+          {%- endif %}
+          {%- if item.area_dunam %}
+          <span class="yiud-area">{{ "%.2f"|format(item.area_dunam) }} דונם</span>
+          {%- endif %}
         </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">מבנים ומוסדות ציבור</span>
-          <span class="yiud-explained">מבנים ומוסדות ציבור</span>
-          <span class="yiud-area">2.53 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">מגורים ד'</span>
-          <span class="yiud-explained">מגורים ד' (בנייה רוויה — בניינים רב-קומתיים)</span>
-          <span class="yiud-area">3.60 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">שטח ציבורי פתוח</span>
-          <span class="yiud-explained">שטח ציבורי פתוח</span>
-          <span class="yiud-area">2.27 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">מגורים ב'</span>
-          <span class="yiud-explained">מגורים ב' (בנייה צמודת קרקע — בתים פרטיים)</span>
-          <span class="yiud-area">0.53 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">יעוד עפ"י תכנית מאושרת אחרת</span>
-          <span class="yiud-explained">יעוד עפ"י תכנית מאושרת אחרת</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">דרך מאושרת</span>
-          <span class="yiud-explained">דרך (שמורת דרך — לא ניתן לבנות)</span>
-          <span class="yiud-area">3.92 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">מגורים ג'</span>
-          <span class="yiud-explained">מגורים ג' (בנייה נמוכה — 2–4 קומות)</span>
-          <span class="yiud-area">1.62 דונם</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">אזור פיתוח</span>
-          <span class="yiud-explained">אזור פיתוח</span>
-        </div>
-        
-        <div class="yiud-card">
-          <span class="yiud-name">מרחב עירוני מוטה מטרו</span>
-          <span class="yiud-explained">מרחב עירוני מוטה מטרו</span>
-        </div>
-        
+        {% endfor %}
       </div>
     </div>
   </div>
-  
+  {% endif %}
 
   <!-- 5. PLANS -->
-  
+  {% if plans %}
   <div class="section">
     <div class="section-body">
       <h2 class="section-heading">תכניות בנייה</h2>
 
-      <div class="plan-card status-other">
+      {% for plan in plans %}
+      {%- set status_lower = (plan.status_display or '') | lower -%}
+      {%- if 'אושר' in status_lower or 'תקפ' in status_lower -%}
+        {%- set status_cls = 'status-approved' -%}
+        {%- set badge_status_cls = 'badge-status-approved' -%}
+      {%- elif 'הפקד' in status_lower -%}
+        {%- set status_cls = 'status-deposited' -%}
+        {%- set badge_status_cls = 'badge-status-deposited' -%}
+      {%- elif 'לפני' in status_lower or 'הכנה' in status_lower -%}
+        {%- set status_cls = 'status-before' -%}
+        {%- set badge_status_cls = 'badge-status-before' -%}
+      {%- else -%}
+        {%- set status_cls = 'status-other' -%}
+        {%- set badge_status_cls = 'badge-status-other' -%}
+      {%- endif -%}
+      {%- set type_order = (plan.plan_type_order | string) -%}
+      {%- if type_order == '3' -%}
+        {%- set type_cls = 'badge-type-local' -%}
+        {%- set type_label = 'מקומית' -%}
+      {%- elif type_order == '2' -%}
+        {%- set type_cls = 'badge-type-district' -%}
+        {%- set type_label = 'מחוזית' -%}
+      {%- elif type_order == '1' -%}
+        {%- set type_cls = 'badge-type-national' -%}
+        {%- set type_label = 'ארצית' -%}
+      {%- else -%}
+        {%- set type_cls = 'badge-type-other' -%}
+        {%- set type_label = plan.plan_charactor_name or 'אחר' -%}
+      {%- endif -%}
+
+      <div class="plan-card {{ status_cls }}">
         <div class="plan-card-top">
           <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב</span>
+            <span class="badge {{ type_cls }}">{{ type_label }}</span>
+            <span class="plan-name">{{ plan.pl_name or plan.mavat_name or plan.pl_number }}</span>
           </div>
-          <span class="badge badge-status-other">אישור</span>
+          {%- if plan.status_display %}
+          <span class="badge {{ badge_status_cls }}">{{ plan.status_display }}</span>
+          {%- endif %}
         </div>
 
         <div class="plan-meta">
-          תמא/ 60 · 2022
-        </div>
-        <div class="plan-objectives">מטרות: תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב ^ תכנית זו מהווה תכנית משלימה לתכניות המטרו. מטרתה של התכנית, המהווה רצף תכנוני לתכניות המטרו, היא להקנות לוועדות המקומיות ולרשויות הרישוי, לפי העניין, סמכות שבשיקול דעת לצמצם את ההשפעה על מג</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/99005182356/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      <div class="plan-card status-other">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">תכנית שימור אתרים הרצליה - הר/2000/שמ</span>
-          </div>
-          <span class="badge badge-status-other">אישור</span>
+          {{ plan.pl_number }}{%- if plan.date_display %} · {{ plan.date_display }}{%- endif %}
         </div>
 
-        <div class="plan-meta">
-          504-0113134 · 2021
-        </div>
-        <div class="plan-objectives">מטרות: תכנית שימור אתרים הרצליה - הר/2000/שמ ^ לקבוע הוראות ותנאים להבטחת שימור ושיקום אתרי המורשת הבנויה והנופית של העיר, ע"י קביעת אזורים ואתרים לשימור והוראות לפיתוחם ושימורם.
- ^ א. קביעת אתרים לשימור.
-ב. קביעת אזורים לשימור.
-ג. קביעת צירי מורשת. 
-ד.</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/5000249731/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      <div class="plan-card status-other">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים</span>
-          </div>
-          <span class="badge badge-status-other">אישור</span>
-        </div>
+        {%- if plan.pl_objectives %}
+        <div class="plan-objectives">מטרות: {{ plan.pl_objectives }}</div>
+        {%- endif %}
 
-        <div class="plan-meta">
-          504-0760520 · 2020
-        </div>
-        <div class="plan-objectives">מטרות: הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים ^ הוספת שימושים לטובת שבילי אופניים, שבילי הולכי רגל ומתקני הצללה לכל השטחים הציבוריים הפתוחים בעיר.
- ^ א. תוספת שימוש לשבילי אופניים, שבילי הולכי רגל ומתקני הצללה.
-ב. קביעת הוראות פיתוח להקמת שבילי או</div>
+        {%- if plan.pl_url %}
         <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/5001009885/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
+          <a href="{{ plan.pl_url }}" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
         </div>
+        {%- endif %}
       </div>
-      <div class="plan-card status-other">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים</span>
-          </div>
-          <span class="badge badge-status-other">אישור</span>
-        </div>
-
-        <div class="plan-meta">
-          504-0273037 · 2016
-        </div>
-        <div class="plan-objectives">מטרות: הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים ^ א. קביעת הוראות לסגירת מרפסות בתחומי קווי בניין תב"עיים בבניינים משותפים.
-ב. קביעת הוראות לסגירת מרפסות בתחומי קווי בניין תב"עיים בקוטג'ים.
-ג. קביעת תוספת שטחי שירות לקוטג'ים קיימים בהיתר ב</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/5000338159/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      <div class="plan-card status-other">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">הר/2530</span>
-          </div>
-          <span class="badge badge-status-other">בתהליך אישור (הוגשו התנגדויות, בהמתנה להכרעה)</span>
-        </div>
-
-        <div class="plan-meta">
-          504-0336685
-        </div>
-        <div class="plan-objectives">מטרות: הר/2530 ^ א.	התווית מסגרת תכנונית כוללת להבטחת איכות חיים עירונית לכלל תושבי העיר תוך ניצול יתרונות מיקומה  במרחב המטרופוליני של תל-אביב.
-ב.	העצמת מעמדה הכלכלי של העיר בתחום התעסוקה על ידי הגדלת מספר מקומות העבודה תוך ריכוז מאמץ למשיכת תעסוקה מתקדמת</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/5000368373/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      <div class="plan-card status-deposited">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-national">ארצית</span>
-            <span class="plan-name">הרובע הצפוני הרצליה - שכונת המטרו</span>
-          </div>
-          <span class="badge badge-status-deposited">בהפקדה (בתהליך אישור — ניתן להגיש התנגדויות)</span>
-        </div>
-
-        <div class="plan-meta">
-          תמל/ 3006
-        </div>
-        <div class="plan-objectives">מטרות: הרובע הצפוני הרצליה - שכונת המטרו ^ הקמת שכונה מעורבת שימושים במרחב שבין השכונות גן רש"ל ונחלת עדה בתחום ההשפעה של מערכת המטרו, כחלק מהרובע הצפוני הרצליה.
-סה"כ בתכנית 9,640 יחידות דיור, שטחים לתעסוקה ומסחר מלווה רחוב. ^ 1. שינוי מערך יעודי הקרקע מהי</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/99001017471/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      <div class="plan-card status-other">
-        <div class="plan-card-top">
-          <div class="plan-card-top-right">
-            <span class="badge badge-type-local">מקומית</span>
-            <span class="plan-name">תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב</span>
-          </div>
-          <span class="badge badge-status-other">אישור</span>
-        </div>
-
-        <div class="plan-meta">
-          תמא/ 70 · 2025
-        </div>
-        <div class="plan-objectives">מטרות: תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב ^  ^</div>
-        <div class="plan-footer">
-          <a href="https://mavat.iplan.gov.il/SV4/1/99005242136/310" target="_blank" rel="noopener" class="plan-link">צפייה במבא"ת ←</a>
-        </div>
-      </div>
-      
+      {% endfor %}
 
     </div>
   </div>
-  
+  {% endif %}
 
   <!-- 6. TIMELINE -->
-  
+  {% if timeline_plans %}
   <div class="section">
     <div class="section-body">
       <h2 class="section-heading">ציר זמן תכנוני</h2>
       <div class="timeline">
+        {% for plan in timeline_plans %}
+        {%- set status_lower = (plan.status_display or '') | lower -%}
+        {%- if 'אושר' in status_lower or 'תקפ' in status_lower -%}
+          {%- set dot_cls = 'dot-approved' -%}
+        {%- elif 'הפקד' in status_lower -%}
+          {%- set dot_cls = 'dot-deposited' -%}
+        {%- elif 'לפני' in status_lower or 'הכנה' in status_lower -%}
+          {%- set dot_cls = 'dot-before' -%}
+        {%- else -%}
+          {%- set dot_cls = 'dot-other' -%}
+        {%- endif -%}
         <div class="timeline-item">
-          <div class="timeline-dot dot-other"></div>
-          <span class="timeline-year">2025</span>
-          <span class="timeline-plan-name">תמא/ 70 תכנית מתאר ארצית למרחב מערכת המטרו במטרופולין תל אביב</span>
-          <span class="timeline-status">· אישור</span>
+          <div class="timeline-dot {{ dot_cls }}"></div>
+          {%- if plan.date_display %}
+          <span class="timeline-year">{{ plan.date_display }}</span>
+          {%- endif %}
+          <span class="timeline-plan-name">{{ plan.pl_name or plan.pl_number }}</span>
+          {%- if plan.status_display %}
+          <span class="timeline-status">· {{ plan.status_display }}</span>
+          {%- endif %}
         </div>
-        <div class="timeline-item">
-          <div class="timeline-dot dot-other"></div>
-          <span class="timeline-year">2022</span>
-          <span class="timeline-plan-name">תכנית משלימה לתכניות מפורטות לקווי מטרו במטרופולין תל אביב</span>
-          <span class="timeline-status">· אישור</span>
-        </div>
-        <div class="timeline-item">
-          <div class="timeline-dot dot-other"></div>
-          <span class="timeline-year">2021</span>
-          <span class="timeline-plan-name">תכנית שימור אתרים הרצליה - הר/2000/שמ</span>
-          <span class="timeline-status">· אישור</span>
-        </div>
-        <div class="timeline-item">
-          <div class="timeline-dot dot-other"></div>
-          <span class="timeline-year">2020</span>
-          <span class="timeline-plan-name">הר/מק/2462 - שילוב שבילי אופנים בשצ"פ עירוניים</span>
-          <span class="timeline-status">· אישור</span>
-        </div>
-        <div class="timeline-item">
-          <div class="timeline-dot dot-other"></div>
-          <span class="timeline-year">2016</span>
-          <span class="timeline-plan-name">הר/מק/2302 - תכנית מתארית להסדרת חישוב שטחים בבתי מגורים</span>
-          <span class="timeline-status">· אישור</span>
-        </div>
-        
+        {% endfor %}
       </div>
     </div>
   </div>
-  
+  {% endif %}
 
   <!-- 7. MARKET DATA -->
-  
+  {% if re %}
   <div class="section">
     <div class="section-body">
       <h2 class="section-heading">נתוני שוק</h2>
@@ -771,44 +642,71 @@
             <tbody>
               <tr class="data-row">
                 <td class="row-label">החלקה</td>
-                <td class="price-cell null-cell">—
+                <td class="price-cell {%- if not re.parcel_1y %} null-cell{%- endif %}">
+                  {%- if re.parcel_1y %}&#8362;{{ "{:,.0f}".format(re.parcel_1y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;12,224
+                <td class="price-cell {%- if not re.parcel_3y %} null-cell{%- endif %}">
+                  {%- if re.parcel_3y %}&#8362;{{ "{:,.0f}".format(re.parcel_3y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;12,224
+                <td class="price-cell {%- if not re.parcel_5y %} null-cell{%- endif %}">
+                  {%- if re.parcel_5y %}&#8362;{{ "{:,.0f}".format(re.parcel_5y) }}{%- else %}—{%- endif %}
                 </td>
               </tr>
               <tr class="data-row">
                 <td class="row-label">שכונה</td>
-                <td class="price-cell">&#8362;177
+                <td class="price-cell {%- if not re.neighborhood_1y %} null-cell{%- endif %}">
+                  {%- if re.neighborhood_1y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_1y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;23,380
+                <td class="price-cell {%- if not re.neighborhood_3y %} null-cell{%- endif %}">
+                  {%- if re.neighborhood_3y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_3y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;21,120
+                <td class="price-cell {%- if not re.neighborhood_5y %} null-cell{%- endif %}">
+                  {%- if re.neighborhood_5y %}&#8362;{{ "{:,.0f}".format(re.neighborhood_5y) }}{%- else %}—{%- endif %}
                 </td>
               </tr>
               <tr class="data-row">
                 <td class="row-label">עיר</td>
-                <td class="price-cell">&#8362;38,415
+                <td class="price-cell {%- if not re.settlement_1y %} null-cell{%- endif %}">
+                  {%- if re.settlement_1y %}&#8362;{{ "{:,.0f}".format(re.settlement_1y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;38,415
+                <td class="price-cell {%- if not re.settlement_3y %} null-cell{%- endif %}">
+                  {%- if re.settlement_3y %}&#8362;{{ "{:,.0f}".format(re.settlement_3y) }}{%- else %}—{%- endif %}
                 </td>
-                <td class="price-cell">&#8362;38,415
+                <td class="price-cell {%- if not re.settlement_5y %} null-cell{%- endif %}">
+                  {%- if re.settlement_5y %}&#8362;{{ "{:,.0f}".format(re.settlement_5y) }}{%- else %}—{%- endif %}
                 </td>
               </tr>
+              {%- if re.parcel_deal_count or re.neighborhood_deal_count %}
               <tr class="note-row">
                 <td colspan="4">
-                  מבוסס על 4 עסקאות בחלקה, 34 עסקאות בשכונה
+                  מבוסס על
+                  {%- if re.parcel_deal_count %} {{ re.parcel_deal_count }} עסקאות בחלקה{%- endif %}
+                  {%- if re.neighborhood_deal_count %}{%- if re.parcel_deal_count %},{%- endif %} {{ re.neighborhood_deal_count }} עסקאות בשכונה{%- endif %}
                 </td>
               </tr>
+              {%- endif %}
             </tbody>
           </table>
         </div>
 
-        <div><div class="trend-card">
+        <div>
+          {%- set direction = re.trend_direction or 'unknown' -%}
+          <div class="trend-card">
+            {%- if direction == 'up' %}
+            <span class="trend-arrow up">&#9650;</span>
+            {%- elif direction == 'down' %}
             <span class="trend-arrow down">&#9660;</span>
-            <span class="trend-pct down">-99.2%
+            {%- else %}
+            <span class="trend-arrow stable">&#8594;</span>
+            {%- endif %}
+
+            {%- if re.trend_pct is not none and re.trend_pct is not undefined %}
+            <span class="trend-pct {{ direction }}">
+              {%- if direction == 'up' %}+{%- endif %}{{ "%.1f"|format(re.trend_pct) }}%
             </span>
+            {%- else %}
+            <span class="trend-pct stable">—</span>
+            {%- endif %}
 
             <span class="trend-label">מגמת 5 שנים<br>שכונה</span>
           </div>
@@ -817,15 +715,15 @@
       </div>
     </div>
   </div>
-  
+  {% endif %}
 
   <!-- 8. AI ANALYSIS -->
+  {%- if ai_analysis and 'לא זמין' not in ai_analysis %}
   <div class="ai-section">
     <span class="ai-label">ניתוח karkAi</span>
-    <div class="ai-text">מדובר בחלקה גדולה (כ-6.5 דונם) בהרצליה עם ייעודים מעורבים – חלקה מיועד למגורים (סוגים ב' ו-ד'), חלק לשטח ציבורי ומוסדות, וחלק לדרך מוצעת. הסטטוס התכנוני מורכב: יש תכנית בהפקדה ל"שכונת המטרו" שעשויה לשנות באופן מהותי את הזכויות, ובמקביל תכנית נוספת (הר/2530) בתהליך אישור עם התנגדויות. בשלב זה לא ברור מה בדיוק ניתן לבנות על החלקה כי התכנון עדיין בתנועה, והעובדה שיש ייעוד "שימור אתרים" (תכנית הר/2000/שמ) מחייבת בדיקה מעמיקה האם החלקה עצמה או חלק ממנה כפופים להגבלות שימור.
-
-⚠️ המידע מוצג לצרכי לימוד בלבד ואינו מהווה ייעוץ משפטי, תכנוני, או השקעתי.</div>
+    <div class="ai-text">{{ ai_analysis }}</div>
   </div>
+  {%- endif %}
 
   <!-- 9. FOOTER -->
   <footer class="footer">
@@ -837,7 +735,7 @@
       </p>
     </div>
     <div class="footer-info">
-      karka.ai &nbsp;·&nbsp; דוח נוצר אוטומטית &nbsp;·&nbsp; 03/08/2026 21:25<br>
+      karka.ai &nbsp;·&nbsp; דוח נוצר אוטומטית &nbsp;·&nbsp; {{ created_at }}<br>
       מקורות: govmap.gov.il, iplan.gov.il
     </div>
   </footer>
@@ -846,9 +744,9 @@
 
 <script>
 (function() {
-  var centX = 3878290.3106739605;
-  var centY = 3787403.943592255;
-  var wkt   = "MULTIPOLYGON Z (((3878374.6329616252 3787433.2411201894 0.00400978140533,3878359.487881352 3787373.884649268 0.004012101329863,3878213.24521955 3787374.646064321 0.003998628817499,3878213.6893209 3787434.174891009 0.003994950093329,3878374.6329616252 3787433.2411201894 0.00400978140533)))";
+  var centX = {{ centroid_x | default(0) }};
+  var centY = {{ centroid_y | default(0) }};
+  var wkt   = {{ shape_wkt | tojson }};
 
   // Convert EPSG:3857 to WGS84
   function merc2wgs(x, y) {
@@ -911,7 +809,7 @@
     });
     L.marker(center, { icon: goldIcon })
       .addTo(map)
-      .bindPopup('<div dir="rtl" style="font-family:serif;font-size:13px;"><strong>גוש 6672, חלקה 52</strong><br>הרצליה</div>');
+      .bindPopup('<div dir="rtl" style="font-family:serif;font-size:13px;"><strong>גוש {{ gush }}, חלקה {{ helka }}</strong>{% if city %}<br>{{ city }}{% endif %}</div>');
   }
 })();
 </script>
