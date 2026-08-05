@@ -11,3 +11,4 @@ slowapi==0.1.9
 email-validator==2.2.0
 pyproj>=3.6.0
 pymupdf==1.24.0
+weasyprint==62.3
