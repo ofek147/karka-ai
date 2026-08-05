@@ -20,7 +20,11 @@ import re
 from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
-from pyproj import Transformer
+try:
+    from pyproj import Transformer as _ProjTransformer
+    _USE_TRANSFORMER = True
+except Exception:
+    _USE_TRANSFORMER = False
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -39,9 +43,19 @@ from ..utils.report_utils import (
 # Template directory (../templates relative to this file)
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "..", "templates")
 
-def _get_transformer() -> Transformer:
-    """Create a fresh Transformer per call — thread-safe, no shared state."""
-    return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
+def _reproject(x: float, y: float) -> tuple:
+    """Convert EPSG:3857 → EPSG:2039 (TM35). Works across pyproj versions."""
+    try:
+        # pyproj >= 2.2: Transformer API
+        from pyproj import Transformer
+        t = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
+        return t.transform(x, y)
+    except Exception:
+        # Fallback: legacy pyproj.transform
+        import pyproj
+        p1 = pyproj.Proj(init='epsg:3857')
+        p2 = pyproj.Proj(init='epsg:2039')
+        return pyproj.transform(p1, p2, x, y)
 
 # Satellite image defaults
 _SAT_IMG_WIDTH  = 1200
@@ -144,8 +158,7 @@ async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession]
     cx_tm35: Optional[float] = None
     cy_tm35: Optional[float] = None
     if centroid_x and centroid_y:
-        t = _get_transformer()
-        cx_tm35, cy_tm35 = t.transform(centroid_x, centroid_y)
+        cx_tm35, cy_tm35 = _reproject(centroid_x, centroid_y)
 
     # ── 3. iplan Layer 1: plans ───────────────────────────────────────────────
     plans_raw: List[Any] = []
