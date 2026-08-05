@@ -121,10 +121,10 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         "מה הסטטוס הנוכחי, ומה השפעתה על הקרקע. "
         "אל תכלול ייעוץ השקעתי."
     )
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=60.0)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
     response = await client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=400,
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=600,
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()
