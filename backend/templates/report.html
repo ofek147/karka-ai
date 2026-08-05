@@ -108,8 +108,7 @@ body{font-family:'Heebo',sans-serif;font-size:13px;line-height:1.6;background:#f
 
 /* ══ SLIDE 1: COVER ══ */
 #slide-cover{background:var(--green-900);}
-.cov-sat{position:absolute;top:0;right:0;width:60%;height:100%;z-index:1;overflow:hidden;}
-.cov-sat img{width:100%;height:100%;object-fit:cover;object-position:center;}
+.cov-sat{position:absolute;top:0;right:0;width:60%;height:100%;z-index:1;overflow:hidden;background-size:cover;background-position:center;background-repeat:no-repeat;}
 .cov-sat-fade{position:absolute;top:0;left:0;width:120px;height:100%;
   background:linear-gradient(to right,var(--green-900) 0%,transparent 100%);}
 .cov-sat-poly{position:absolute;top:0;left:0;width:100%;height:100%;}
@@ -269,8 +268,7 @@ body{font-family:'Heebo',sans-serif;font-size:13px;line-height:1.6;background:#f
   </svg>
 
   {% if satellite_b64 %}
-  <div class="cov-sat">
-    <img src="data:image/png;base64,{{ satellite_b64 }}" alt="">
+  <div class="cov-sat" style="background-image:url('data:image/png;base64,{{ satellite_b64 }}');">
     {% if shape_wkt_pixels %}
     <svg class="cov-sat-poly" viewBox="0 0 1200 800" preserveAspectRatio="none">
       <polygon points="{{ shape_wkt_pixels }}"
