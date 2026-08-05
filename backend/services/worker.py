@@ -1,0 +1,146 @@
+"""
+worker.py — background thread that processes report_jobs one at a time.
+
+Flow:
+  every 10s → pick oldest pending job → mark processing →
+  generate report → send email/SMS → mark done
+  on error → mark failed + store error_msg
+
+Stuck recovery: jobs stuck in `processing` for >15min are reset to `pending`.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+import threading
+import time
+from datetime import datetime, timezone, timedelta
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from ..db import SessionLocal
+from ..models.report_job import ReportJob
+from ..services.report_service import generate_report_html
+from ..services.pdf_service import html_to_pdf
+from ..services.email_service import send_report_ready
+
+logger = logging.getLogger(__name__)
+
+POLL_INTERVAL = 10        # seconds between queue checks
+STUCK_TIMEOUT = 15 * 60  # seconds before resetting stuck jobs
+
+
+async def _process_one(db: AsyncSession, job: ReportJob) -> None:
+    """Process a single report job end-to-end."""
+    now = datetime.now(timezone.utc)
+
+    # Mark as processing
+    await db.execute(
+        update(ReportJob)
+        .where(ReportJob.id == job.id)
+        .values(status="processing", started_at=now)
+    )
+    await db.commit()
+
+    try:
+        logger.info(f"[worker] Processing job #{job.id} — גוש {job.gush} חלקה {job.helka}")
+
+        html = await generate_report_html(job.gush, job.helka, db=db)
+        pdf_bytes = await html_to_pdf(html)
+
+        # Send to email and/or phone
+        sent = False
+        if job.email:
+            sent = await send_report_ready(
+                email=job.email,
+                name=job.name,
+                gush=job.gush,
+                helka=job.helka,
+                pdf_bytes=pdf_bytes,
+            )
+
+        # TODO: SMS via Twilio/Vonage when phone-only (job.phone and not job.email)
+
+        await db.execute(
+            update(ReportJob)
+            .where(ReportJob.id == job.id)
+            .values(status="done", completed_at=datetime.now(timezone.utc))
+        )
+        await db.commit()
+        logger.info(f"[worker] Job #{job.id} done — sent={sent}")
+
+    except Exception as e:
+        logger.error(f"[worker] Job #{job.id} failed: {e}")
+        await db.execute(
+            update(ReportJob)
+            .where(ReportJob.id == job.id)
+            .values(
+                status="failed",
+                completed_at=datetime.now(timezone.utc),
+                error_msg=str(e)[:1000],
+            )
+        )
+        await db.commit()
+
+
+async def _reset_stuck_jobs(db: AsyncSession) -> None:
+    """Reset jobs stuck in `processing` for too long (e.g. server crash mid-job)."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=STUCK_TIMEOUT)
+    result = await db.execute(
+        update(ReportJob)
+        .where(ReportJob.status == "processing", ReportJob.started_at < cutoff)
+        .values(status="pending", started_at=None)
+        .returning(ReportJob.id)
+    )
+    stuck = result.fetchall()
+    if stuck:
+        await db.commit()
+        logger.warning(f"[worker] Reset {len(stuck)} stuck jobs: {[r[0] for r in stuck]}")
+
+
+async def _worker_loop() -> None:
+    """Main async loop — runs forever inside the worker thread."""
+    logger.info("[worker] Started")
+
+    while True:
+        try:
+            async with SessionLocal() as db:
+                # 1. Reset stuck jobs
+                await _reset_stuck_jobs(db)
+
+                # 2. Pick oldest pending job
+                result = await db.execute(
+                    select(ReportJob)
+                    .where(ReportJob.status == "pending")
+                    .order_by(ReportJob.created_at.asc())
+                    .limit(1)
+                )
+                job = result.scalar_one_or_none()
+
+                if job:
+                    await _process_one(db, job)
+                else:
+                    # No pending jobs — wait before next poll
+                    await asyncio.sleep(POLL_INTERVAL)
+
+        except Exception as e:
+            logger.error(f"[worker] Loop error: {e}")
+            await asyncio.sleep(POLL_INTERVAL)
+
+
+def start_worker() -> threading.Thread:
+    """
+    Start the worker in a dedicated daemon thread with its own asyncio event loop.
+    Call once from FastAPI lifespan.
+    """
+    def _run():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        loop.run_until_complete(_worker_loop())
+
+    t = threading.Thread(target=_run, name="report-worker", daemon=True)
+    t.start()
+    logger.info("[worker] Thread started")
+    return t

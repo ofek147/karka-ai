@@ -17,6 +17,7 @@ from sqlalchemy import select, delete
 from ..db import SessionLocal as async_session
 from ..models.lead_model import Lead
 from ..models.chat_model import ChatSession, ChatMessage
+from ..models.report_job import ReportJob
 from ..config import settings
 
 router = APIRouter()
@@ -210,3 +211,30 @@ async def delete_lead(lead_id: int, authorization: Optional[str] = Header(defaul
         await db.execute(delete(Lead).where(Lead.id == lead_id))
         await db.commit()
     return {"ok": True, "deleted": lead_id}
+
+
+@router.get("/api/admin/jobs")
+async def get_jobs(authorization: Optional[str] = Header(default=None)):
+    """Report job queue — all jobs ordered by newest first."""
+    _require_session(authorization)
+    async with async_session() as db:
+        result = await db.execute(
+            select(ReportJob).order_by(ReportJob.created_at.desc()).limit(200)
+        )
+        jobs = result.scalars().all()
+        return [
+            {
+                "id": j.id,
+                "gush": j.gush,
+                "helka": j.helka,
+                "email": j.email,
+                "phone": j.phone,
+                "name": j.name,
+                "status": j.status,
+                "created_at": j.created_at.isoformat() if j.created_at else None,
+                "started_at": j.started_at.isoformat() if j.started_at else None,
+                "completed_at": j.completed_at.isoformat() if j.completed_at else None,
+                "error_msg": j.error_msg,
+            }
+            for j in jobs
+        ]

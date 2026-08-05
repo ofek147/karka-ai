@@ -12,10 +12,12 @@ from .routers import admin as admin_router
 from .routers import parcel as parcel_router
 from .routers import report as report_router
 from .db import init_db
-from .models import lead_model  # noqa: F401 — registers ORM model with Base
-from .models import chat_model  # noqa: F401
-from .models import auth_model  # noqa: F401
-from .models import plan_cache  # noqa: F401
+from .models import lead_model   # noqa: F401 — registers ORM model with Base
+from .models import chat_model   # noqa: F401
+from .models import auth_model   # noqa: F401
+from .models import plan_cache   # noqa: F401
+from .models import report_job   # noqa: F401
+from .services.worker import start_worker
 
 limiter = Limiter(key_func=get_remote_address)
 
@@ -23,6 +25,7 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    start_worker()
     yield
 
 
