@@ -15,27 +15,30 @@ async def send_report_ready(
     name: Optional[str],
     gush: int,
     helka: int,
-    pdf_bytes: bytes,
+    text: str,
 ) -> bool:
     """
-    Send the completed report PDF to the user's email via Resend.
-    Attaches the PDF directly to the email.
+    Send the completed report as a plain-text email via Resend.
     """
-    import base64
     display_name = name or "שלום"
-    filename = f"karkAi-report-{gush}-{helka}.pdf"
-    pdf_b64 = base64.b64encode(pdf_bytes).decode()
 
     if not settings.resend_api_key:
         logger.warning(f"[EMAIL DEV MODE] Would send report to {email} (gush={gush}, helka={helka})")
         return True
 
+    # Convert plain text to simple HTML (preserve line breaks)
+    text_html = "<br>".join(
+        f"<strong>{line}</strong>" if line and not line.startswith(" ") and line.endswith(":")
+        else line
+        for line in text.replace("&", "&amp;").replace("<", "&lt;").splitlines()
+    )
+
     html = f"""
-<div dir="rtl" style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
-  <h2 style="margin-top:0">kark<span style="color:#c4a044;font-style:italic">A</span>i</h2>
-  <p>{display_name},</p>
-  <p>הדוח התכנוני עבור <strong>גוש {gush}, חלקה {helka}</strong> מוכן ומצורף למייל זה.</p>
-  <p style="color:#64748b;font-size:13px">הדוח כולל ניתוח תכנוני מבוסס מידע רשמי מתכניות בניה, ייעודי קרקע, ותמונת לוויין.</p>
+<div dir="rtl" style="font-family:sans-serif;max-width:600px;margin:auto;padding:28px;color:#1a1a1a">
+  <h2 style="margin-top:0;color:#0d1829">kark<span style="color:#c4a044;font-style:italic">A</span>i</h2>
+  <p>{display_name}, הדוח התכנוני שלך מוכן:</p>
+  <hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0">
+  <div style="line-height:1.8;font-size:14px">{text_html}</div>
   <hr style="border:none;border-top:1px solid #e2e8f0;margin:20px 0">
   <p style="color:#94a3b8;font-size:12px">karkAi — ניתוח קרקעות חכם</p>
 </div>"""
@@ -46,14 +49,6 @@ async def send_report_ready(
             "to": [email],
             "subject": f"דוח תכנוני — גוש {gush}, חלקה {helka}",
             "html": html,
-            "attachments": [
-                {
-                    "filename": filename,
-                    "content": pdf_b64,
-                    "type": "application/pdf",
-                    "disposition": "attachment",
-                }
-            ],
         }
         async with httpx.AsyncClient(timeout=30) as client:
             r = await client.post(

@@ -21,8 +21,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.report_job import ReportJob
-from ..services.report_service import generate_report_html
-from ..services.pdf_service import html_to_pdf
+from ..services.report_service import generate_report_text
 from ..services.email_service import send_report_ready
 
 logger = logging.getLogger(__name__)
@@ -46,8 +45,7 @@ async def _process_one(db: AsyncSession, job: ReportJob) -> None:
     try:
         logger.info(f"[worker] Processing job #{job.id} — גוש {job.gush} חלקה {job.helka}")
 
-        html = await generate_report_html(job.gush, job.helka, db=db)
-        pdf_bytes = await html_to_pdf(html)
+        text = await generate_report_text(job.gush, job.helka, db=db)
 
         # Send to email and/or phone
         sent = False
@@ -57,7 +55,7 @@ async def _process_one(db: AsyncSession, job: ReportJob) -> None:
                 name=job.name,
                 gush=job.gush,
                 helka=job.helka,
-                pdf_bytes=pdf_bytes,
+                text=text,
             )
 
         # TODO: SMS via Twilio/Vonage when phone-only (job.phone and not job.email)

@@ -4,20 +4,9 @@ FROM mcr.microsoft.com/playwright/python:v1.47.0-noble
 
 WORKDIR /app
 
-# WeasyPrint system deps (Ubuntu Jammy)
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpango-1.0-0 \
-    libpangocairo-1.0-0 \
-    libcairo2 \
-    libgdk-pixbuf2.0-0 \
-    libfontconfig1 \
-    fonts-liberation \
-    fonts-noto \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install deps — cache-bust: 2026-08-05-v4
+# Install deps
 COPY backend/requirements.txt .
-RUN pip install --no-cache-dir --upgrade weasyprint && pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend
 COPY backend/ ./backend/
