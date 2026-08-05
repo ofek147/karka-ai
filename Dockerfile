@@ -1,6 +1,6 @@
 # Playwright official image — comes with Chromium + all system deps pre-installed
 # Ubuntu Jammy (22.04) base — stable, well-tested on Railway
-FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
+FROM mcr.microsoft.com/playwright/python:v1.47.0-noble
 
 WORKDIR /app
 

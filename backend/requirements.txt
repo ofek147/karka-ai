@@ -9,7 +9,7 @@ sqlalchemy[asyncio]==2.0.36
 asyncpg==0.30.0
 slowapi==0.1.9
 email-validator==2.2.0
-pyproj>=3.6.0,<3.7.0
+pyproj==3.7.2
 pymupdf==1.24.0
 playwright==1.47.0
 weasyprint==62.3
