@@ -20,7 +20,6 @@ from datetime import datetime, timezone, timedelta
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db import SessionLocal
 from ..models.report_job import ReportJob
 from ..services.report_service import generate_report_html
 from ..services.pdf_service import html_to_pdf
@@ -102,11 +101,19 @@ async def _reset_stuck_jobs(db: AsyncSession) -> None:
 
 async def _worker_loop() -> None:
     """Main async loop — runs forever inside the worker thread."""
+    from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
+    from ..db import _build_url
+    from ..config import settings
+
+    # Create engine + session factory local to this thread's event loop
+    engine = create_async_engine(_build_url(settings.database_url), echo=False)
+    WorkerSession = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
+
     logger.info("[worker] Started")
 
     while True:
         try:
-            async with SessionLocal() as db:
+            async with WorkerSession() as db:
                 # 1. Reset stuck jobs
                 await _reset_stuck_jobs(db)
 
