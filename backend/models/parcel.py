@@ -50,7 +50,6 @@ class ParcelFullData(BaseModel):
     helka: int
     geometry: Optional[ParcelGovmap] = None
     plans: List[PlanInfo] = []
-    land_use_iplan: List[LandUseInfo] = []
     source: str  # "live" | "mock" | "cache"
     land_use: list = []
     taba: list = []

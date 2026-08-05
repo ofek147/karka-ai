@@ -111,25 +111,6 @@ async def fetch_plan_pdf_text_from_url(plan_url: str) -> Optional[str]:
                 except Exception:
                     pass
 
-            # Strategy 3: look for download button and click it
-            if not pdf_url:
-                try:
-                    btn = page.locator(
-                        "button:has-text('הורד'), a:has-text('הורד'), "
-                        "button:has-text('PDF'), a:has-text('PDF'), "
-                        "[title*='הורד'], [title*='PDF']"
-                    )
-                    if await btn.count() > 0:
-                        async with page.expect_response(
-                            lambda r: _PDF_CT_RE.search(r.headers.get("content-type", "")),
-                            timeout=10000,
-                        ) as resp_info:
-                            await btn.first.click()
-                        pdf_url = (await resp_info.value).url
-                        intercepted_pdfs.append(pdf_url)
-                except Exception:
-                    pass
-
             await browser.close()
 
     except Exception as e:

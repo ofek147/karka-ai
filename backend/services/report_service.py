@@ -26,7 +26,6 @@ from ..clients.mavat_client import fetch_plan_pdf_text_from_url
 from ..services.claude_service import _call_claude, summarize_plan
 from ..services.plan_cache_service import (
     get_cached_plan,
-    get_cached_plan_text,
     set_cached_plan_text,
     set_cached_plan_summary,
 )

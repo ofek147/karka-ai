@@ -70,12 +70,6 @@ def build_parcel_context(gush: int, helka: int, parcel_data: ParcelFullData) -> 
     return "\n".join(lines)
 
 
-async def ask_claude(gush: int, helka: int, parcel_data: ParcelFullData, question: str) -> str:
-    """Legacy single-question endpoint (kept for /api/ask compatibility)"""
-    messages = [{"role": "user", "content": f"{build_parcel_context(gush, helka, parcel_data)}\n\nשאלה: {question}"}]
-    return await _call_claude(messages)
-
-
 async def chat_claude(messages: List[Dict[str, str]], parcel_context: str = "") -> str:
     """Full conversation history endpoint for /api/chat"""
     claude_messages = []
