@@ -30,7 +30,7 @@ POLL_INTERVAL = 10        # seconds between queue checks
 STUCK_TIMEOUT = 15 * 60  # seconds before resetting stuck jobs
 
 
-async def _process_one(db: AsyncSession, job: ReportJob) -> None:
+async def _process_one(db: AsyncSession, job: ReportJob, WorkerSession) -> None:
     """Process a single report job end-to-end."""
     now = datetime.now(timezone.utc)
 
@@ -45,7 +45,9 @@ async def _process_one(db: AsyncSession, job: ReportJob) -> None:
     try:
         logger.info(f"[worker] Processing job #{job.id} — גוש {job.gush} חלקה {job.helka}")
 
-        text = await generate_report_text(job.gush, job.helka, db=db)
+        # Open a dedicated session for report_service (plan_cache reads/writes)
+        async with WorkerSession() as report_db:
+            text = await generate_report_text(job.gush, job.helka, db=report_db)
 
         # Send to email and/or phone
         sent = False
@@ -127,7 +129,7 @@ async def _worker_loop() -> None:
                 job = result.scalar_one_or_none()
 
                 if job:
-                    await _process_one(db, job)
+                    await _process_one(db, job, WorkerSession)
                 else:
                     # No pending jobs — wait before next poll
                     await asyncio.sleep(POLL_INTERVAL)

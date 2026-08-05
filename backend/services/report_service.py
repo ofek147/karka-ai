@@ -162,11 +162,10 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
         f"ייעודי קרקע: {yiud_list}\n\n"
         f"תכניות בתוקף:\n{plans_list}"
         f"{summaries_block}\n\n"
-        "כתוב ניתוח תכנוני בעברית פשוטה (6-10 משפטים) עבור משקיע פרטי:\n"
-        "1. מה המצב התכנוני הנוכחי של החלקה\n"
-        "2. מה מותר לבנות (יחידות דיור, קומות, שטחים — אם ידוע)\n"
-        "3. האם יש פוטנציאל לשינוי ייעוד או תוספת זכויות\n"
-        "4. מה כדאי לשים לב אליו\n"
+        "כתוב ניתוח תכנוני בעברית פשוטה (6-10 משפטים) עבור משקיע פרטי.\n"
+        "התחל ישירות עם הניתוח — ללא פתיחה כמו 'הנה', 'היי', 'בהחלט' וכו'.\n"
+        "כסה: מצב תכנוני נוכחי, מה מותר לבנות (יחידות/קומות/שטחים אם ידוע), "
+        "פוטנציאל לשינוי ייעוד או תוספת זכויות, ומה חשוב לבדוק.\n"
         "אל תיתן ייעוץ השקעתי. אל תשתמש ב-markdown."
     )
 
@@ -190,7 +189,11 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
         f"תאריך הפקה: {created_at}",
         "",
         "ייעוד קרקע:",
-        *[f"  • {lu['yiud']} ({lu['yiud_explained']})" for lu in land_use_items],
+        *[
+            f"  • {lu['yiud']}" if lu['yiud'] == lu['yiud_explained']
+            else f"  • {lu['yiud']} ({lu['yiud_explained']})"
+            for lu in land_use_items
+        ],
         "",
         "תכניות רלוונטיות:",
         *[
