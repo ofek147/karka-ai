@@ -1,153 +1,143 @@
 """
-mavat_client.py — extracts PDF text from a mavat plan page.
+mavat_client.py — Fetch PDF text from mavat.iplan.gov.il
 
-mavat.iplan.gov.il is a full SPA — direct HTTP gives only HTML shell.
-We use Playwright (headless Chromium) to:
-  1. Navigate to the plan page
-  2. Wait for the network to settle
-  3. Intercept any PDF response OR find a PDF link in the DOM
-  4. Download the PDF bytes via httpx
-  5. Extract text with PyMuPDF (fitz)
+Flow per plan:
+  1. Load mavat page with Playwright (headless)
+  2. Intercept the automatic REST API response → get doc list (rsPlanDocs)
+  3. Click the "הוראות התכנית" button (sv4-docs) → intercept the PDF response
+  4. Extract text with PyMuPDF
 
-The Playwright image (mcr.microsoft.com/playwright/python:v1.47.0-jammy)
-ships with Chromium pre-installed — no extra install step needed.
+The REST API and PDF download both require Angular session state.
+The only reliable way is to intercept responses during the Angular lifecycle.
 """
 
 from __future__ import annotations
 
-import os
-import re
+import asyncio
 from typing import Optional
 
 import fitz  # PyMuPDF
-import httpx
-from playwright.async_api import async_playwright, TimeoutError as PWTimeout
-
-MAVAT_TIMEOUT = int(os.getenv("MAVAT_TIMEOUT_MS", "25000"))
-
-_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (X11; Linux x86_64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/120.0.0.0 Safari/537.36"
-    ),
-}
-
-# Patterns that identify a PDF network response from mavat
-_PDF_CT_RE = re.compile(r"pdf", re.IGNORECASE)
-_PDF_URL_RE = re.compile(r"\.pdf($|\?)", re.IGNORECASE)
+from playwright.async_api import async_playwright
 
 
-def _extract_text(pdf_bytes: bytes) -> str:
-    """Extract all text from PDF bytes using PyMuPDF."""
-    doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-    parts = [page.get_text("text") for page in doc if page.get_text("text").strip()]
-    doc.close()
-    return "\n".join(parts)
+BASE_URL = "https://mavat.iplan.gov.il"
 
 
-async def _download_pdf(url: str) -> Optional[bytes]:
-    """Download PDF bytes from a direct URL."""
-    try:
-        async with httpx.AsyncClient(timeout=60, follow_redirects=True, verify=False) as client:
-            r = await client.get(url, headers=_HEADERS)
-            r.raise_for_status()
-            if b"%PDF" in r.content[:10]:
-                return r.content
-    except Exception as e:
-        print(f"[mavat_client] download error {url}: {e}")
-    return None
-
-
-async def fetch_plan_pdf_text_from_url(plan_url: str) -> Optional[str]:
+async def fetch_plan_pdf_text(plan_id: int | str) -> Optional[str]:
     """
-    Navigate to a mavat plan page, find and download the plan PDF, extract text.
-
-    Args:
-        plan_url: mavat plan page URL (e.g. https://mavat.iplan.gov.il/SV4/1/{id}/310)
-
-    Returns:
-        Full extracted text, or None if PDF not found / unreadable.
+    Fetch and extract text from all plan documents for the given mavat plan_id.
+    Returns concatenated text or None if no PDF found.
     """
-    pdf_url: Optional[str] = None
-    pdf_bytes: Optional[bytes] = None
-
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
-            context = await browser.new_context(ignore_https_errors=True)
+            context = await browser.new_context(accept_downloads=True)
             page = await context.new_page()
 
-            intercepted_pdfs: list[str] = []
-
-            # Intercept PDF responses from the network
-            async def on_response(response):
-                ct = response.headers.get("content-type", "")
-                url = response.url
-                if _PDF_CT_RE.search(ct) or _PDF_URL_RE.search(url):
-                    intercepted_pdfs.append(url)
-
-            page.on("response", on_response)
-
-            # Navigate and wait for network to settle
             try:
-                await page.goto(plan_url, timeout=MAVAT_TIMEOUT, wait_until="networkidle")
-            except PWTimeout:
-                pass  # Still try to extract what we got
-
-            # Strategy 1: intercepted PDF from network traffic
-            if intercepted_pdfs:
-                pdf_url = intercepted_pdfs[-1]
-
-            # Strategy 2: find PDF link in DOM
-            if not pdf_url:
-                try:
-                    links = await page.eval_on_selector_all(
-                        "a[href*='.pdf'], a[href*='pdf'], a[href*='PDF']",
-                        "els => els.map(e => e.href)"
-                    )
-                    if links:
-                        pdf_url = links[0]
-                except Exception:
-                    pass
-
-            # Strategy 3: look for download button and click it
-            if not pdf_url:
-                try:
-                    btn = page.locator(
-                        "button:has-text('הורד'), a:has-text('הורד'), "
-                        "button:has-text('PDF'), a:has-text('PDF'), "
-                        "[title*='הורד'], [title*='PDF']"
-                    )
-                    if await btn.count() > 0:
-                        async with page.expect_response(
-                            lambda r: _PDF_CT_RE.search(r.headers.get("content-type", "")),
-                            timeout=10000,
-                        ) as resp_info:
-                            await btn.first.click()
-                        pdf_url = (await resp_info.value).url
-                        intercepted_pdfs.append(pdf_url)
-                except Exception:
-                    pass
-
-            await browser.close()
+                return await _fetch_with_page(page, plan_id)
+            finally:
+                await context.close()
+                await browser.close()
 
     except Exception as e:
-        print(f"[mavat_client] Playwright error for {plan_url}: {e}")
+        print(f"[mavat] Error fetching plan {plan_id}: {e}")
         return None
 
-    if not pdf_url:
-        print(f"[mavat_client] No PDF found for {plan_url}")
+
+async def _fetch_with_page(page, plan_id) -> Optional[str]:
+    plan_id = str(plan_id)
+
+    # Step 1: intercept the API + PDF responses
+    api_data = {}
+    pdf_results: list[tuple[str, bytes]] = []  # (doc_name, pdf_bytes)
+
+    async def on_response(response):
+        nonlocal api_data
+        # Capture plan API
+        if f"mid={plan_id}" in response.url and "SV4/1" in response.url:
+            try:
+                api_data = await response.json()
+            except Exception:
+                pass
+            return
+        # Capture PDF downloads
+        try:
+            body = await response.body()
+            if body[:4] == b"%PDF":
+                doc_name = response.url.split("fn=")[1].split("&")[0] if "fn=" in response.url else "doc"
+                pdf_results.append((doc_name, body))
+        except Exception:
+            pass
+
+    page.on("response", on_response)
+
+    # Step 2: load page (Angular auto-fires the API call)
+    await page.goto(
+        f"{BASE_URL}/SV4/1/{plan_id}/310",
+        wait_until="domcontentloaded",
+        timeout=20000,
+    )
+    await asyncio.sleep(5)
+
+    if not api_data:
+        print(f"[mavat] No API data for plan {plan_id}")
         return None
 
-    pdf_bytes = await _download_pdf(pdf_url)
-    if not pdf_bytes:
+    docs = api_data.get("rsPlanDocs", [])
+    if not docs:
+        print(f"[mavat] No documents for plan {plan_id}")
         return None
 
-    text = _extract_text(pdf_bytes)
-    if not text.strip():
-        print(f"[mavat_client] PDF has no extractable text: {pdf_url}")
+    print(f"[mavat] Plan {plan_id}: {len(docs)} docs")
+
+    # Step 3: click sv4-docs button (הוראות התכנית) → triggers PDF download
+    btn = page.locator("a.sv4-docs").first
+    try:
+        await btn.click(timeout=8000, force=True)
+        await asyncio.sleep(6)
+    except Exception as e:
+        print(f"[mavat] sv4-docs click failed: {e}")
+
+    # Step 4: also try sv4-circul (תשריט) if visible
+    btn2 = page.locator("a.sv4-circul").first
+    try:
+        await btn2.click(timeout=5000, force=True)
+        await asyncio.sleep(5)
+    except Exception:
+        pass
+
+    if not pdf_results:
+        print(f"[mavat] No PDF captured for plan {plan_id}")
         return None
 
-    print(f"[mavat_client] Extracted {len(text):,} chars from {plan_url}")
-    return text
+    # Step 5: extract text from all PDFs
+    texts = []
+    for doc_name, pdf_bytes in pdf_results:
+        try:
+            pdf_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            text = "\n".join(p.get_text() for p in pdf_doc)
+            pdf_doc.close()
+            if text.strip():
+                texts.append(f"=== {doc_name} ===\n{text.strip()}")
+                print(f"[mavat] Plan {plan_id} / {doc_name}: {len(text)} chars")
+        except Exception as e:
+            print(f"[mavat] PyMuPDF error: {e}")
+
+    return "\n\n".join(texts) if texts else None
+
+
+# Legacy compat
+async def fetch_plan_pdf_text_from_url(pl_url: str) -> Optional[str]:
+    """
+    Legacy wrapper: extract plan_id from pl_url and call fetch_plan_pdf_text.
+    pl_url format: https://mavat.iplan.gov.il/SV4/1/{plan_id}/310
+    """
+    try:
+        parts = pl_url.rstrip("/").split("/")
+        for part in reversed(parts):
+            if part.isdigit() and len(part) >= 7:
+                return await fetch_plan_pdf_text(int(part))
+    except Exception as e:
+        print(f"[mavat] fetch_plan_pdf_text_from_url error: {e}")
+    return None
