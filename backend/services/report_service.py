@@ -90,18 +90,28 @@ def _wkt_to_svg_points(
         bbox_w = bbox_max_x - bbox_min_x
         bbox_h = bbox_max_y - bbox_min_y
 
-        # Detect stride: 3 (x y z) if triplets, else 2 (x y)
-        # Heuristic: if count divisible by 3 and not by 2 → stride=3; else try 2 first
-        stride = 3 if (len(nums) % 3 == 0 and len(nums) % 2 != 0) else 2
+        # Try stride=2 first (x y), then stride=3 (x y z)
+        # Filter out points outside the bbox (bad Z values misread as coords)
+        def _try_stride(stride: int) -> list[str]:
+            pts = []
+            for i in range(0, len(nums) - stride + 1, stride):
+                x, y = nums[i], nums[i + 1]
+                # Skip points way outside bbox (likely Z values or bad data)
+                if not (bbox_min_x - bbox_w <= x <= bbox_max_x + bbox_w):
+                    continue
+                if not (bbox_min_y - bbox_h <= y <= bbox_max_y + bbox_h):
+                    continue
+                px = (x - bbox_min_x) / bbox_w * img_width
+                py = (1.0 - (y - bbox_min_y) / bbox_h) * img_height
+                pts.append(f"{px:.1f},{py:.1f}")
+            return pts
 
-        svg_points: list[str] = []
-        for i in range(0, len(nums) - 1, stride):
-            px = (nums[i] - bbox_min_x) / bbox_w * img_width
-            # Y-axis is flipped: ArcGIS Y increases upward, SVG Y increases downward
-            py = (1.0 - (nums[i + 1] - bbox_min_y) / bbox_h) * img_height
-            svg_points.append(f"{px:.1f},{py:.1f}")
+        # Prefer stride=2; if too few valid points try stride=3
+        svg_points = _try_stride(2)
+        if len(svg_points) < 3:
+            svg_points = _try_stride(3)
 
-        return " ".join(svg_points)
+        return " ".join(svg_points) if len(svg_points) >= 3 else ""
     except Exception as e:
         print(f"[report_service] _wkt_to_svg_points error: {e}")
         return ""
