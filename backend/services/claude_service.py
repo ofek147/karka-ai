@@ -131,7 +131,7 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
 
 
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
-    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=25.0)
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
 
     try:
         response = await client.messages.create(

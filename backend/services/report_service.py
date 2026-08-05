@@ -149,7 +149,7 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
     )
     summaries_block = (
         "\n\nסיכומי תכניות (מתוך PDFs רשמיים):\n"
-        + "\n".join(f"- {s}" for s in plan_summaries)
+        + "\n".join(f"- {s[:300]}" for s in plan_summaries)
     ) if plan_summaries else ""
 
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
