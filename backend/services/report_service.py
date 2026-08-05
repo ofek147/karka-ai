@@ -39,8 +39,15 @@ from ..utils.report_utils import (
 # Template directory (../templates relative to this file)
 TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "..", "templates")
 
-# CRS: govmap → EPSG:3857; iplan needs EPSG:2039 (TM35)
-_T_3857_TO_TM35 = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
+# CRS transformer is created lazily inside the function to avoid module-level init issues
+_T_3857_TO_TM35: Optional[Transformer] = None
+
+
+def _get_transformer() -> Transformer:
+    global _T_3857_TO_TM35
+    if _T_3857_TO_TM35 is None:
+        _T_3857_TO_TM35 = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
+    return _T_3857_TO_TM35
 
 # Satellite image defaults
 _SAT_IMG_WIDTH  = 1200
@@ -143,7 +150,7 @@ async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession]
     cx_tm35: Optional[float] = None
     cy_tm35: Optional[float] = None
     if centroid_x and centroid_y:
-        cx_tm35, cy_tm35 = _T_3857_TO_TM35.transform(centroid_x, centroid_y)
+        cx_tm35, cy_tm35 = _get_transformer().transform(centroid_x, centroid_y)
 
     # ── 3. iplan Layer 1: plans ───────────────────────────────────────────────
     plans_raw: List[Any] = []
