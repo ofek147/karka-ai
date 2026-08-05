@@ -71,14 +71,16 @@ async def _process_one(db: AsyncSession, job: ReportJob) -> None:
         logger.info(f"[worker] Job #{job.id} done — sent={sent}")
 
     except Exception as e:
-        logger.error(f"[worker] Job #{job.id} failed: {e}")
+        import traceback
+        tb = traceback.format_exc()
+        logger.error(f"[worker] Job #{job.id} failed: {e}\n{tb}")
         await db.execute(
             update(ReportJob)
             .where(ReportJob.id == job.id)
             .values(
                 status="failed",
                 completed_at=datetime.now(timezone.utc),
-                error_msg=str(e)[:1000],
+                error_msg=tb[-1000:],
             )
         )
         await db.commit()
