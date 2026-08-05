@@ -20,12 +20,6 @@ import re
 from typing import Any, Dict, List, Optional
 
 from jinja2 import Environment, FileSystemLoader
-try:
-    from pyproj import Transformer as _ProjTransformer
-    _USE_TRANSFORMER = True
-except Exception:
-    _USE_TRANSFORMER = False
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..clients.govmap_client import get_parcel_geometry

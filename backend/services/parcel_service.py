@@ -13,8 +13,7 @@ def _to_tm35(x: float, y: float):
     """Convert EPSG:3857 (Web Mercator) to EPSG:2039 (Israeli TM35)."""
     try:
         from pyproj import Transformer
-        transformer = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
-        return transformer.transform(x, y)
+        return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True).transform(x, y)
     except Exception:
         return None, None
 
