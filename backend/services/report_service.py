@@ -22,11 +22,15 @@ from typing import Any, Dict, List, Optional
 from jinja2 import Environment, FileSystemLoader
 from pyproj import Transformer
 
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from ..clients.govmap_client import get_parcel_geometry
 from ..clients.iplan_client import get_plans_by_centroid, get_land_use_by_centroid
 from ..clients.map_client import get_satellite_image_b64
+from ..clients.mavat_client import fetch_plan_pdf_text_from_url
 from ..clients.real_estate_client import get_real_estate_stats, RealEstateStats
 from ..services.claude_service import _call_claude
+from ..services.plan_cache_service import get_cached_plan_text, set_cached_plan_text
 from ..utils.report_utils import (
     _translate_status, _translate_yiud,
     _epoch_to_year, _classify_plan,
@@ -41,7 +45,7 @@ _T_3857_TO_TM35 = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
 # Satellite image defaults
 _SAT_IMG_WIDTH  = 1200
 _SAT_IMG_HEIGHT = 800
-_SAT_BUFFER     = 400  # meters in EPSG:3857
+_SAT_BUFFER     = 500  # meters in EPSG:3857 — must match map_client.BUFFER
 
 
 def _wkt_to_svg_points(
@@ -89,7 +93,7 @@ def _wkt_to_svg_points(
         return ""
 
 
-async def generate_report_html(gush: int, helka: int) -> str:
+async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession] = None) -> str:
     """
     Fetch all data for a parcel and render the Jinja2 report template.
 
@@ -193,19 +197,28 @@ async def generate_report_html(gush: int, helka: int) -> str:
 
     # ── 7. Extract city name from plan metadata ───────────────────────────────
     # מחפש עיר/יישוב — plan_county_name עדיף על district_name (שהוא מחוז)
-    # מסנן שמות מחוזות: "מרכז", "תל אביב" (מחוז), "ירושלים" (מחוז), "צפון", "דרום", "חיפה" (מחוז)
-    _DISTRICT_NAMES = {"מרכז", "צפון", "דרום", "חיפה", "ירושלים", "תל אביב"}
+    # מסנן שמות מחוזות בלבד — "תל אביב" עיר לגיטימית, "מחוז תל אביב" לא
+    _DISTRICT_ONLY = {"מרכז", "צפון", "דרום"}  # ערים שהן גם מחוזות נשמרות
+    _DISTRICT_PREFIX = ("מחוז ", "district")     # מסנן לפי prefix בלבד
+
+    def _is_district(name: str) -> bool:
+        n = name.strip()
+        if n in _DISTRICT_ONLY:
+            return True
+        if any(n.lower().startswith(p) for p in _DISTRICT_PREFIX):
+            return True
+        return False
 
     city = ""
     for p in plans_raw[:10]:
         county = getattr(p, "plan_county_name", None) or ""
         district = getattr(p, "district_name", None) or ""
         # county = עיר/רשות מקומית — עדיף
-        if county and county.strip() not in _DISTRICT_NAMES:
+        if county and not _is_district(county):
             city = county.strip()
             break
         # district = מחוז — רק אם אין county טוב יותר
-        if district and district.strip() not in _DISTRICT_NAMES:
+        if district and not _is_district(district):
             city = district.strip()
             # אל תפסיק — אולי יש county טוב יותר בהמשך
 
@@ -216,7 +229,31 @@ async def generate_report_html(gush: int, helka: int) -> str:
     ]
     timeline_plans.sort(key=lambda d: d.get("date_display") or "0", reverse=True)
 
-    # ── 9. Claude AI analysis ─────────────────────────────────────────────────
+    # ── 9. Fetch PDF text for ALL plans (with DB cache, in parallel) ─────────
+    if db is not None:
+        fetch_candidates = [
+            p for p in plans_raw
+            if getattr(p, "pl_url", None) and getattr(p, "pl_number", None)
+        ]
+
+        async def _fetch_one(plan) -> None:
+            # Use receiving_date as upstream last-modified proxy (epoch ms → datetime)
+            last_modified = None
+            if getattr(plan, "receiving_date", None):
+                try:
+                    last_modified = datetime.datetime.utcfromtimestamp(plan.receiving_date / 1000)
+                except Exception:
+                    pass
+            cached = await get_cached_plan_text(db, plan.pl_number, last_modified=last_modified)
+            if not cached:
+                cached = await fetch_plan_pdf_text_from_url(plan.pl_url)
+                if cached:
+                    await set_cached_plan_text(db, plan.pl_number, cached, plan.pl_url)
+            plan.pdf_text = cached
+
+        await asyncio.gather(*[_fetch_one(p) for p in fetch_candidates])
+
+    # ── 10. Claude AI analysis ────────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) if land_use_items else "לא ידוע"
     plans_summary = "; ".join(
         "{} ({})".format(p.get("pl_name") or p.get("mavat_name") or "", p.get("status_display") or "")
@@ -224,28 +261,50 @@ async def generate_report_html(gush: int, helka: int) -> str:
         if p.get("pl_name") or p.get("mavat_name")
     )
 
+    # Collect full PDF text from ALL plans — no truncation
+    pdf_sections: List[str] = []
+    for plan in plans_raw:
+        text = getattr(plan, "pdf_text", None)
+        if text:
+            label = plan.pl_name or plan.pl_number or plan.mavat_name or ""
+            pdf_sections.append(f"=== תכנית {label} ===\n{text}")
+
     area_line = f"{area_sqm:.0f} מ\"ר" if area_sqm else "לא ידוע"
     city_line  = f", עיר {city}" if city else ""
+    pdf_block  = (
+        "\n\nתוכן תכניות (מתוך PDF רשמי):\n" + "\n\n".join(pdf_sections)
+        if pdf_sections else ""
+    )
+
     ai_prompt = (
         f"נתוני חלקה:\n"
         f"גוש {gush}, חלקה {helka}{city_line}\n"
         f"שטח: {area_line}\n"
         f"ייעודי קרקע: {yiud_list}\n"
-        f"תכניות: {plans_summary}\n\n"
+        f"תכניות: {plans_summary}"
+        f"{pdf_block}\n\n"
         "כתוב פסקה אחת קצרה (3-4 משפטים) בעברית פשוטה, המסבירה למשקיע פרטי "
         "מה המשמעות התכנונית המעשית של החלקה הזו — מה מותר לבנות, "
         "מה הסטטוס הנוכחי, ומה כדאי לשים לב אליו. "
+        "אם קיים מידע מPDF — השתמש בו לפרטים קונקרטיים (יח\"ד, קומות, שטחים). "
         "אל תיתן ייעוץ השקעתי."
     )
 
     ai_analysis = ""
     try:
-        ai_analysis = await _call_claude([{"role": "user", "content": ai_prompt}])
+        raw = await _call_claude([{"role": "user", "content": ai_prompt}])
+        # Clean markdown formatting — not appropriate for luxury PDF
+        import re as _re
+        ai_analysis = _re.sub(r'\*\*(.+?)\*\*', r'\1', raw)  # bold
+        ai_analysis = _re.sub(r'\*(.+?)\*', r'\1', ai_analysis)  # italic
+        ai_analysis = _re.sub(r'#{1,6}\s+', '', ai_analysis)  # headers
+        ai_analysis = _re.sub(r'^\s*[-•]\s+', '', ai_analysis, flags=_re.MULTILINE)  # bullets
+        ai_analysis = _re.sub(r'⚠️|\u26a0\ufe0f', '', ai_analysis)  # emoji warning
     except Exception as e:
         print(f"[report_service] Claude error: {e}")
         ai_analysis = "ניתוח AI לא זמין כרגע."
 
-    # ── 10. Render template ───────────────────────────────────────────────────
+    # ── 11. Render template ───────────────────────────────────────────────────
     # (map_url removed — using Leaflet.js interactive map instead)
     env = Environment(loader=FileSystemLoader(TEMPLATES_DIR), autoescape=False)
     template = env.get_template("report.html")

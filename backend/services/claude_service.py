@@ -94,7 +94,7 @@ async def generate_title(first_message: str) -> str:
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     try:
         response = await client.messages.create(
-            model="claude-haiku-4-5",
+            model="claude-haiku-4-5-20251001",
             max_tokens=20,
             messages=[{
                 "role": "user",
@@ -111,7 +111,7 @@ async def _call_claude(messages: List[Dict[str, str]]) -> str:
 
     try:
         response = await client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-5-20250929",
             max_tokens=1024,
             system=SYSTEM_PROMPT,
             messages=messages

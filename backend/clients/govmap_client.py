@@ -86,7 +86,8 @@ async def search_by_gush(gush: int, helka: Optional[int] = None) -> List[Dict]:
         results.append(parsed)
 
     if helka is not None:
-        results = [r for r in results if r.get("parcel") == helka]
+        # govmap may return parcel as string or int — normalise both sides
+        results = [r for r in results if str(r.get("parcel", "")) == str(helka)]
 
     return results
 

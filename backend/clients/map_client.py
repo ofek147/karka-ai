@@ -8,7 +8,7 @@ from typing import Optional
 import base64
 
 ARCGIS_IMAGERY = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export"
-BUFFER = 400  # meters in EPSG:3857 units around centroid
+BUFFER = 500  # meters in EPSG:3857 — enough context around parcel
 
 
 async def get_satellite_image_b64(

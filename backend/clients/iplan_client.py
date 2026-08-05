@@ -1,6 +1,18 @@
+import ssl
 import httpx
 from typing import List
 from ..models.parcel import PlanInfo, LandUseInfo
+
+# iplan.gov.il uses an older TLS config that Python 3.12+ OpenSSL 3.x rejects
+# by default. A legacy SSL context with SECLEVEL=1 is needed.
+def _iplan_ssl() -> ssl.SSLContext:
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+    ctx.check_hostname = False
+    ctx.verify_mode = ssl.CERT_NONE
+    ctx.set_ciphers("DEFAULT:@SECLEVEL=1")
+    return ctx
+
+_IPLAN_SSL = _iplan_ssl()
 
 LAYER_1_URL = "https://ags.iplan.gov.il/arcgisiplan/rest/services/PlanningPublic/Xplan/MapServer/1/query"
 LAYER_4_URL = "https://ags.iplan.gov.il/arcgisiplan/rest/services/PlanningPublic/Xplan/MapServer/4/query"
@@ -35,7 +47,7 @@ async def get_plans_by_centroid(cx: float, cy: float) -> List[PlanInfo]:
         "outFields": LAYER_1_FIELDS,
         "returnGeometry": False,
     }
-    async with httpx.AsyncClient(timeout=30) as client:
+    async with httpx.AsyncClient(verify=_IPLAN_SSL, timeout=30) as client:
         r = await client.get(LAYER_1_URL, params=params)
         r.raise_for_status()
         data = r.json()
@@ -87,7 +99,7 @@ async def get_land_use_by_centroid(cx: float, cy: float) -> List[LandUseInfo]:
         "outFields": LAYER_4_FIELDS,
         "returnGeometry": False,
     }
-    async with httpx.AsyncClient(timeout=15) as client:
+    async with httpx.AsyncClient(verify=_IPLAN_SSL, timeout=15) as client:
         r = await client.get(LAYER_4_URL, params=params)
         r.raise_for_status()
         data = r.json()

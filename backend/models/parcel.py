@@ -13,6 +13,7 @@ class ParcelGovmap(BaseModel):
 
 class PlanInfo(BaseModel):
     mavat_name: str
+    pdf_text: Optional[str] = None  # extracted from mavat PDF, populated by plan_cache_service
     pl_name: Optional[str] = None
     pl_number: Optional[str] = None
     station_desc: Optional[str] = None
