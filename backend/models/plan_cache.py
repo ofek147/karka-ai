@@ -6,6 +6,7 @@ and re-parse on every report generation. TTL is enforced by the service.
 """
 
 from datetime import datetime
+from typing import Optional
 from sqlalchemy import String, Text, DateTime, Integer
 from sqlalchemy.orm import Mapped, mapped_column
 from ..db import Base
