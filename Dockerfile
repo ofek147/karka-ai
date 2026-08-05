@@ -15,10 +15,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     fonts-noto \
     && rm -rf /var/lib/apt/lists/*
 
-# Install deps first (layer cache)
+# Install deps — cache-bust: 2026-08-05-v2
 COPY backend/requirements.txt .
-# cache-bust: 2026-08-05
-RUN pip install --no-cache-dir -r requirements.txt --upgrade
+RUN pip install --no-cache-dir weasyprint==64.1 && \
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy backend
 COPY backend/ ./backend/
