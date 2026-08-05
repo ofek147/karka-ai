@@ -89,11 +89,16 @@ async def fetch_plan_pdf_text_from_url(plan_url: str) -> Optional[str]:
 
             page.on("response", on_response)
 
-            # Navigate and wait for network to settle
+            # Navigate — domcontentloaded is fast and reliable on Railway
+            # networkidle hangs forever on Angular SPAs
             try:
-                await page.goto(plan_url, timeout=MAVAT_TIMEOUT, wait_until="networkidle")
+                await page.goto(plan_url, timeout=MAVAT_TIMEOUT, wait_until="domcontentloaded")
             except PWTimeout:
                 pass  # Still try to extract what we got
+
+            # Wait briefly for Angular to fire initial API + PDF requests
+            import asyncio as _asyncio
+            await _asyncio.sleep(8)
 
             # Strategy 1: intercepted PDF from network traffic
             if intercepted_pdfs:
