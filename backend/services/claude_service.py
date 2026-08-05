@@ -106,6 +106,30 @@ async def generate_title(first_message: str) -> str:
         return first_message[:40]
 
 
+async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str:
+    """
+    Summarize a single plan PDF text into a concise planning summary.
+    Called once per plan, result cached in DB.
+    """
+    prompt = (
+        f"להלן תוכן תכנית בניה רשמית:\n"
+        f"שם תכנית: {plan_name}\n"
+        f"מספר תכנית: {plan_number}\n\n"
+        f"{pdf_text}\n\n"
+        "סכם את התכנית ב-3-5 משפטים בעברית פשוטה. "
+        "התמקד ב: מה מותר לבנות, כמה יחידות/קומות/שטחים, "
+        "מה הסטטוס הנוכחי, ומה השפעתה על הקרקע. "
+        "אל תכלול ייעוץ השקעתי."
+    )
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=60.0)
+    response = await client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=400,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()
+
+
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=25.0)
 

@@ -19,13 +19,16 @@ class PlanCache(Base):
     # Plan identifier — mavat plan number (e.g. "1013/03/50")
     plan_number: Mapped[str] = mapped_column(String(100), unique=True, index=True)
 
-    # Extracted text from PDF (full or truncated to DB limits)
+    # Extracted text from PDF (full raw text)
     pdf_text: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Source URL that was fetched
-    pdf_url: Mapped[str] = mapped_column(String(500), nullable=True)
+    # Claude summary of this plan — cached separately, generated after pdf_text
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
-    # When cached — used for TTL eviction
+    # Source URL that was fetched
+    pdf_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # When cached
     cached_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=datetime.utcnow,

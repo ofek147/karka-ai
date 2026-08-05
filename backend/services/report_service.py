@@ -33,8 +33,13 @@ from ..clients.iplan_client import get_plans_by_centroid, get_land_use_by_centro
 from ..clients.map_client import get_satellite_image_b64
 from ..clients.mavat_client import fetch_plan_pdf_text_from_url
 from ..clients.real_estate_client import get_real_estate_stats, RealEstateStats
-from ..services.claude_service import _call_claude
-from ..services.plan_cache_service import get_cached_plan_text, set_cached_plan_text
+from ..services.claude_service import _call_claude, summarize_plan
+from ..services.plan_cache_service import (
+    get_cached_plan,
+    get_cached_plan_text,
+    set_cached_plan_text,
+    set_cached_plan_summary,
+)
 from ..utils.report_utils import (
     _translate_status, _translate_yiud,
     _epoch_to_year, _classify_plan,
@@ -244,29 +249,57 @@ async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession]
     ]
     timeline_plans.sort(key=lambda d: d.get("date_display") or "0", reverse=True)
 
-    # ── 9. Fetch PDF text for ALL plans (with DB cache, in parallel) ─────────
+    # ── 9. Fetch PDF + summarize each plan (sequential, one at a time) ────────
+    plan_summaries: List[str] = []  # one summary per plan, in order
     if db is not None:
         fetch_candidates = [
             p for p in plans_raw
             if getattr(p, "pl_url", None) and getattr(p, "pl_number", None)
         ]
-
-        async def _fetch_one(plan) -> None:
-            # Use receiving_date as upstream last-modified proxy (epoch ms → datetime)
+        for plan in fetch_candidates:
+            # last_modified from receiving_date (epoch ms)
             last_modified = None
             if getattr(plan, "receiving_date", None):
                 try:
                     last_modified = datetime.datetime.utcfromtimestamp(plan.receiving_date / 1000)
                 except Exception:
                     pass
-            cached = await get_cached_plan_text(db, plan.pl_number, last_modified=last_modified)
-            if not cached:
-                cached = await fetch_plan_pdf_text_from_url(plan.pl_url)
-                if cached:
-                    await set_cached_plan_text(db, plan.pl_number, cached, plan.pl_url)
-            plan.pdf_text = cached
 
-        await asyncio.gather(*[_fetch_one(p) for p in fetch_candidates])
+            # Check cache for existing summary first
+            cached_row = await get_cached_plan(db, plan.pl_number, last_modified=last_modified)
+
+            if cached_row and cached_row.summary:
+                # Have both pdf_text and summary cached — use directly
+                plan.pdf_text = cached_row.pdf_text
+                plan_summaries.append(cached_row.summary)
+                print(f"[report_service] Plan {plan.pl_number}: summary from cache")
+                continue
+
+            # Need pdf_text
+            pdf_text = cached_row.pdf_text if cached_row else None
+            if not pdf_text:
+                pdf_text = await fetch_plan_pdf_text_from_url(plan.pl_url)
+                if pdf_text:
+                    await set_cached_plan_text(db, plan.pl_number, pdf_text, plan.pl_url)
+            plan.pdf_text = pdf_text
+
+            if not pdf_text:
+                print(f"[report_service] Plan {plan.pl_number}: no PDF text, skipping")
+                continue
+
+            # Summarize with Claude (Haiku — fast + cheap)
+            try:
+                label = plan.pl_name or plan.pl_number or plan.mavat_name or ""
+                summary = await summarize_plan(
+                    plan_name=label,
+                    plan_number=plan.pl_number or "",
+                    pdf_text=pdf_text,
+                )
+                await set_cached_plan_summary(db, plan.pl_number, summary)
+                plan_summaries.append(summary)
+                print(f"[report_service] Plan {plan.pl_number}: summarized ({len(summary)} chars)")
+            except Exception as e:
+                print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
     # ── 10. Claude AI analysis ────────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) if land_use_items else "לא ידוע"
@@ -276,20 +309,16 @@ async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession]
         if p.get("pl_name") or p.get("mavat_name")
     )
 
-    # Collect full PDF text from ALL plans — no truncation
-    pdf_sections: List[str] = []
-    for plan in plans_raw:
-        text = getattr(plan, "pdf_text", None)
-        if text:
-            label = plan.pl_name or plan.pl_number or plan.mavat_name or ""
-            pdf_sections.append(f"=== תכנית {label} ===\n{text}")
-
     area_line = f"{area_sqm:.0f} מ\"ר" if area_sqm else "לא ידוע"
     city_line  = f", עיר {city}" if city else ""
-    pdf_block  = (
-        "\n\nתוכן תכניות (מתוך PDF רשמי):\n" + "\n\n".join(pdf_sections)
-        if pdf_sections else ""
-    )
+
+    # Build summaries block — one short paragraph per plan
+    summaries_block = ""
+    if plan_summaries:
+        summaries_block = (
+            "\n\nסיכומי תכניות (מתוך תוכן PDF רשמי):\n"
+            + "\n".join(f"- {s}" for s in plan_summaries)
+        )
 
     ai_prompt = (
         f"נתוני חלקה:\n"
@@ -297,11 +326,11 @@ async def generate_report_html(gush: int, helka: int, db: Optional[AsyncSession]
         f"שטח: {area_line}\n"
         f"ייעודי קרקע: {yiud_list}\n"
         f"תכניות: {plans_summary}"
-        f"{pdf_block}\n\n"
+        f"{summaries_block}\n\n"
         "כתוב פסקה אחת קצרה (3-4 משפטים) בעברית פשוטה, המסבירה למשקיע פרטי "
         "מה המשמעות התכנונית המעשית של החלקה הזו — מה מותר לבנות, "
         "מה הסטטוס הנוכחי, ומה כדאי לשים לב אליו. "
-        "אם קיים מידע מPDF — השתמש בו לפרטים קונקרטיים (יח\"ד, קומות, שטחים). "
+        "אם קיימים סיכומי תכניות — השתמש בהם לפרטים קונקרטיים (יח\"ד, קומות, שטחים). "
         "אל תיתן ייעוץ השקעתי."
     )
 
