@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install deps first (layer cache)
 COPY backend/requirements.txt .
+# cache-bust: 2026-08-05
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy backend
