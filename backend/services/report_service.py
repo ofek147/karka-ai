@@ -212,9 +212,13 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
 async def _safe(coro, default, label: str):
     """Run a coroutine safely, returning default on error."""
     try:
-        return await coro
+        result = await coro
+        print(f"[report_service] {label}: {len(result) if isinstance(result, list) else 'ok'}")
+        return result
     except Exception as e:
-        print(f"[report_service] {label} error: {e}")
+        import traceback
+        print(f"[report_service] {label} ERROR: {e}")
+        print(traceback.format_exc()[-500:])
         return default
 
 

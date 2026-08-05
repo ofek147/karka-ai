@@ -99,7 +99,7 @@ async def get_land_use_by_centroid(cx: float, cy: float) -> List[LandUseInfo]:
         "outFields": LAYER_4_FIELDS,
         "returnGeometry": False,
     }
-    async with httpx.AsyncClient(verify=_IPLAN_SSL, timeout=15) as client:
+    async with httpx.AsyncClient(verify=_IPLAN_SSL, timeout=30) as client:
         r = await client.get(LAYER_4_URL, params=params)
         r.raise_for_status()
         data = r.json()
