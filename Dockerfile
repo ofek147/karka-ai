@@ -1,20 +1,18 @@
-FROM python:3.12-slim
+# Playwright official image — comes with Chromium + all system deps pre-installed
+# Ubuntu Jammy (22.04) base — stable, well-tested on Railway
+FROM mcr.microsoft.com/playwright/python:v1.47.0-jammy
 
 WORKDIR /app
 
-# WeasyPrint system deps (verified list for Debian Bookworm / python:3.12-slim)
+# WeasyPrint system deps (Ubuntu Jammy)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    python3-dev \
-    libcairo2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
-    libpangoft2-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
     libfontconfig1 \
-    libffi8 \
     fonts-liberation \
     fonts-noto \
-    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Install deps first (layer cache)
