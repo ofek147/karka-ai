@@ -2,22 +2,15 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for Playwright (Chromium) + WeasyPrint
+# System deps for WeasyPrint + fonts only
+# Playwright/Chromium not needed — pl_url from iplan is a direct PDF link (no JS)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    chromium \
-    libnss3 \
-    libatk1.0-0 \
-    libatk-bridge2.0-0 \
-    libcups2 \
-    libxkbcommon0 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxfixes3 \
-    libxrandr2 \
-    libgbm1 \
-    libasound2 \
     libpango-1.0-0 \
     libpangocairo-1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libffi-dev \
+    shared-mime-info \
     libfontconfig1 \
     fonts-liberation \
     fonts-noto \
@@ -26,11 +19,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Install deps first (layer cache)
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Tell Playwright to use the system Chromium (already installed above)
-# Skip downloading its own browser bundle — saves ~300MB + avoids network issues
-ENV PLAYWRIGHT_BROWSERS_PATH=0
-ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy backend
 COPY backend/ ./backend/
