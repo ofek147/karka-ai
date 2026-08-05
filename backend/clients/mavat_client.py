@@ -73,8 +73,14 @@ async def fetch_plan_pdf_text(plan_id: str) -> Optional[str]:
     pdf_url: Optional[str] = None
 
     try:
+        # Use system Chromium if PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH is set
+        _chromium_path = os.getenv("PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH")
+        _launch_kwargs: dict = {"headless": True}
+        if _chromium_path and os.path.exists(_chromium_path):
+            _launch_kwargs["executable_path"] = _chromium_path
+
         async with async_playwright() as p:
-            browser = await p.chromium.launch(headless=True)
+            browser = await p.chromium.launch(**_launch_kwargs)
             context = await browser.new_context(
                 accept_downloads=True,
                 locale="he-IL",

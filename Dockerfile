@@ -27,8 +27,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Playwright Chromium browser
-RUN playwright install chromium --with-deps 2>/dev/null || true
+# Tell Playwright to use the system Chromium (already installed above)
+# Skip downloading its own browser bundle — saves ~300MB + avoids network issues
+ENV PLAYWRIGHT_BROWSERS_PATH=0
+ENV PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium
 
 # Copy backend
 COPY backend/ ./backend/
