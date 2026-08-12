@@ -97,6 +97,8 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
 
     # ── 7. Fetch PDF + summarize each plan (sequential, cached) ──────────────
     plan_summaries: List[str] = []
+    plans_with_pdf: set = set()   # pl_number של תכניות שיש להן הוראות
+    plans_no_pdf: set = set()     # pl_number של תכניות בלי הוראות זמינות
     if db is not None:
         fetch_candidates = [
             p for p in plans_raw
@@ -114,6 +116,7 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
 
             if cached_row and cached_row.summary:
                 plan_summaries.append(cached_row.summary)
+                plans_with_pdf.add(plan.pl_number)
                 print(f"[report_service] Plan {plan.pl_number}: summary from cache")
                 continue
 
@@ -124,6 +127,7 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
                     await set_cached_plan_text(db, plan.pl_number, pdf_text, plan.pl_url)
 
             if not pdf_text:
+                plans_no_pdf.add(plan.pl_number)
                 print(f"[report_service] Plan {plan.pl_number}: no PDF, skipping")
                 continue
 
@@ -136,8 +140,10 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
                 )
                 await set_cached_plan_summary(db, plan.pl_number, summary)
                 plan_summaries.append(summary)
+                plans_with_pdf.add(plan.pl_number)
                 print(f"[report_service] Plan {plan.pl_number}: summarized ({len(summary)} chars)")
             except Exception as e:
+                plans_no_pdf.add(plan.pl_number)
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
     # ── 8. Claude final analysis ──────────────────────────────────────────────
@@ -198,6 +204,7 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
         *[
             f"  • {p.pl_name or p.mavat_name or p.pl_number} — {_translate_status(p.station_desc or '')}"
             f"{' [' + _epoch_to_year(p.pl_date_8 or p.pl_date7) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
+            f"{'  [סוכם מהוראות]' if p.pl_number in plans_with_pdf else ('  [אין הוראות זמינות]' if p.pl_number in plans_no_pdf else '')}"
             for p in plans_raw[:8]
         ],
         "",
