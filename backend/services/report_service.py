@@ -299,7 +299,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     non_residential_sqm = 0.0
     RESIDENTIAL_KEYWORDS = ("מגורים",)
     NON_RESIDENTIAL_KEYWORDS = ("דרך", "שצפ", "שטח ציבורי", "מבנצ", "מוסדות ציבור")
-    for lu in data.land_use_items if hasattr(data, "land_use_items") else []:
+    for lu in land_use_items:
         yiud_str = lu.get("yiud", "")
         area_d = lu.get("area_dunam") or 0
         area_m = area_d * 1000
