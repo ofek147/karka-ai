@@ -266,7 +266,14 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         sz = synthesis.get("plan_size_dunam")
         stage = synthesis.get("plan_stage", "")
         timeline = synthesis.get("timeline_estimate", "")
-        synthesis_block = f"\n\nסינתזת תכניות: {u or '?'} יח\"ד, {sz or '?'} דונם, שלב: {stage}, ציר זמן: {timeline}"
+        primary = synthesis.get("primary_plan", "")
+        has_detailed = synthesis.get("has_detailed_plan", False)
+        # P2: ציטוט מקור ליד נתונים כמותיים
+        src_note = f" (מקור: {primary})" if primary else ""
+        synthesis_block = f"\n\nסינתזת תכניות: שלב: {stage}, ציר זמן: {timeline}"
+        if u and sz:
+            synthesis_block += f"\nנתוני תכנית{src_note}: {u:,} יח\"ד על {sz:,} דונם — אלו נתוני התכנית הכוללת, לא ספציפיים לחלקה"
+        synthesis_block += f"\nהיתרי בנייה: {'קיימת תכנית מפורטת בתוקף' if has_detailed else 'נדרשת תכנית מפורטת'}"
         if synthesis.get("warnings"):
             synthesis_block += f"\nאזהרות: {'; '.join(synthesis['warnings'][:3])}"
 
@@ -281,26 +288,49 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             f"\n\nנתונים כלכליים (לצרכי הצגה בלבד):"
             f"\n- מחיר למ\"ר: ₪{ppm:,.0f} ({note})" if ppm else ""
         )
-        if eu:
-            calc_block += f"\n- יח\"ד משוערות לחלקה: {eu}"
+        # estimated_units הוסר — לא רלוונטי לחלקה (מבוסס יחס אזורי מתמל)
         if av:
             calc_block += f"\n- שווי קרקע זמינה (ל-100 מ\"ר): ₪{av:,.0f}"
         if unav:
             calc_block += f"\n- שווי קרקע לא זמינה (7 שנים): ₪{unav:,.0f}"
 
+    # P2 — breakdown שטחי ייעוד לפי Layer 4
+    residential_sqm = 0.0
+    non_residential_sqm = 0.0
+    RESIDENTIAL_KEYWORDS = ("מגורים",)
+    NON_RESIDENTIAL_KEYWORDS = ("דרך", "שצפ", "שטח ציבורי", "מבנצ", "מוסדות ציבור")
+    for lu in data.land_use_items if hasattr(data, "land_use_items") else []:
+        yiud_str = lu.get("yiud", "")
+        area_d = lu.get("area_dunam") or 0
+        area_m = area_d * 1000
+        if any(k in yiud_str for k in RESIDENTIAL_KEYWORDS):
+            residential_sqm += area_m
+        elif any(k in yiud_str for k in NON_RESIDENTIAL_KEYWORDS):
+            non_residential_sqm += area_m
+
+    yiud_breakdown = ""
+    if residential_sqm > 0 or non_residential_sqm > 0:
+        yiud_breakdown = f"\nשטח מגורים בחלקה: ~{residential_sqm:,.0f} מ\u0022ר | שטחים לא לבנייה: ~{non_residential_sqm:,.0f} מ\u0022ר"
+
     ai_prompt = (
         f"נתוני חלקה:\n"
         f"גוש {gush}, חלקה {helka}{city_line}\n"
-        f"שטח: {area_line}\n"
+        f"שטח: {area_line}{yiud_breakdown}\n"
         f"ייעודי קרקע: {yiud_list}\n\n"
         f"תכניות רלוונטיות:\n{plans_list}"
         f"{synthesis_block}"
         f"{calc_block}\n\n"
-        "כתוב ניתוח תכנוני בעברית פשוטה (6-10 משפטים) עבור משקיע פרטי.\n"
-        "התחל ישירות עם הניתוח — ללא פתיחה כמו 'הנה', 'היי', 'בהחלט' וכו'.\n"
-        "כסה: מצב תכנוני נוכחי, מה מותר לבנות (יחידות/קומות/שטחים אם ידוע), "
-        "פוטנציאל לשינוי ייעוד או תוספת זכויות, ומה חשוב לבדוק.\n"
-        "אל תיתן ייעוץ השקעתי. אל תשתמש ב-markdown."
+        "כתוב ניתוח תכנוני בעברית פשוטה עבור משקיע פרטי. 7-10 משפטים. ללא markdown.\n"
+        "התחל ישירות — ללא 'הנה', 'בהחלט', 'היי'.\n"
+        "חובה לכסות לפי הסדר:\n"
+        "1. מצב תכנוני נוכחי — האם ניתן להוציא היתר ישירות או נדרשת תכנית מפורטת.\n"
+        "2. מה מותר לבנות — לפי ייעוד (מגורים ב'/ד', מבנ\"צ, שצ\"פ) וכמה מהחלקה פנוי לבנייה.\n"
+        "3. מגבלות ספציפיות — שימור, דרכים מוצעות, שטחים ציבוריים.\n"
+        "4. פוטנציאל ריאלי — הערכה לפי ייעוד + שטח + סוג בנייה (לא מחישוב תמל).\n"
+        "5. ציר זמן משוער — כמה שנים עד מימוש.\n"
+        "6. שווי כלכלי — מה מחיר השוק אומר על הקרקע (אם יש נתונים).\n"
+        "7. מה חובה לבדוק לפני קנייה.\n"
+        "אל תיתן ייעוץ השקעתי. אל תציין יח\"ד מבוססות יחס אזורי מתמל."
     )
 
     ai_analysis = "ניתוח AI לא זמין כרגע."
@@ -383,6 +413,26 @@ def _report_data_to_text(data: ReportData) -> str:
     """המר ReportData ל-text string (לשימוש ב-email / legacy)."""
     area_line = f"{data.area_sqm:.0f} מ\"ר ({data.area_dunam} דונם)" if data.area_sqm else "לא ידוע"
 
+    # בנה map pl_number → plan_type + can_issue_permit מסיכומי שלב א'
+    plan_type_map = {}
+    for s in (data.plan_summaries_json or []):
+        num = s.get("plan_number", "")
+        pt = s.get("plan_type", "")
+        can = s.get("can_issue_permit", None)
+        if num:
+            plan_type_map[num] = (pt, can)
+
+    def _plan_type_tag(p) -> str:
+        """תג plan_type ברור — מתארית/ארצית = אינה מזכה בהיתר, מפורטת = מזכה"""
+        num = p.pl_number or ""
+        pt, can = plan_type_map.get(num, ("", None))
+        if can is True:
+            return " [מפורטת — מזכה בהיתר]"
+        if can is False and pt:
+            type_label = pt if pt else "מתארית/ארצית"
+            return f" [{type_label} — אינה מזכה בהיתר ישירות]"
+        return ""
+
     lines = [
         f"דוח תכנוני — גוש {data.gush}, חלקה {data.helka}",
         f"{'עיר: ' + data.city if data.city else ''}",
@@ -396,29 +446,27 @@ def _report_data_to_text(data: ReportData) -> str:
         *[
             f"  • {p.pl_name or p.mavat_name or p.pl_number}"
             f"{' (' + ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) + ')' if ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) else ''}"
+            f"{_plan_type_tag(p)}"
             f"{' [' + _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
             for p in data.plans_raw[:8]
         ],
     ]
 
     # הערכה כלכלית — שכבה 3
+    # estimated_units + sqm_per_unit הוסרו — חישוב מתמל לא רלוונטי לחלקה ספציפית
     if data.calculations:
         c = data.calculations
         calc_lines = ["", "הערכה כלכלית:"]
-        if c.get("estimated_units_for_parcel"):
-            calc_lines.append(f"  • יח\"ד משוערות לחלקה: {c['estimated_units_for_parcel']:.1f}")
-        if c.get("sqm_per_unit"):
-            calc_lines.append(f"  • מ\"ר קרקע ליח\"ד: {c['sqm_per_unit']:.0f} מ\"ר")
         if c.get("price_per_sqm"):
             note = "*" if c.get("price_source") == "fallback" else ""
-            calc_lines.append(f"  • מחיר למ\"ר: ₪{c['price_per_sqm']:,.0f}{note}")
+            calc_lines.append(f"  • מחיר למ\"ר (ממוצע עסקאות שכונה, 3 שנים): ₪{c['price_per_sqm']:,.0f}{note}")
         if c.get("apartment_price_100"):
             calc_lines.append(f"  • מחיר דירה 100 מ\"ר: ₪{c['apartment_price_100']:,.0f}")
         if c.get("available_land_value"):
-            calc_lines.append(f"  • שווי קרקע זמינה (ל-100 מ\"ר): ₪{c['available_land_value']:,.0f}")
+            calc_lines.append(f"  • שווי קרקע זמינה ליח\"ד תיאורטית של 100 מ\"ר בנייה: ₪{c['available_land_value']:,.0f}")
         if c.get("unavailable_land_value"):
             years = c.get("approval_years", 7)
-            calc_lines.append(f"  • שווי קרקע לא זמינה ({years} שנים): ₪{c['unavailable_land_value']:,.0f}")
+            calc_lines.append(f"  • שווי קרקע לא זמינה (היוון {years} שנות המתנה): ₪{c['unavailable_land_value']:,.0f}")
         if c.get("price_source") == "fallback":
             calc_lines.append("  * מחיר דוגמתי — יעודכן לפי נתוני שוק")
         if len(calc_lines) > 2:

@@ -125,10 +125,14 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         '  "public_buildings_sqm": <מ"ר מבני ציבור או null>,\n'
         '  "max_floors": <מספר קומות מקסימלי או null>,\n'
         '  "timeline_estimate": "הערכת ציר זמן לאישור סופי",\n'
+        '  "plan_type": "ארצית/מחוזית/מתארית/מפורטת — בחר אחד",\n'
+        '  "can_issue_permit": <true אם תכנית מפורטת בתוקף, false אחרת>,\n'
         '  "warnings": ["אזהרה 1", "אזהרה 2"],\n'
         '  "positives": ["נקודה חיובית 1", "נקודה חיובית 2"]\n'
         "}\n\n"
         "כללים:\n"
+        "- plan_type: תמ\"א/תתל/תמל = ארצית, תמח = מחוזית, תמ = מתארית, תב\"ע/תכנית מפורטת = מפורטת\n"
+        "- can_issue_permit: true רק אם תכנית מפורטת מאושרת — מתארית/ארצית = false\n"
         "- warnings ו-positives: עד 5 נקודות כל אחד\n"
         "- ציר זמן: על בסיס שלב התכנית + תכניות דומות בישראל\n"
         "- רק מידע שמופיע בטקסט — אל תמציא\n"
@@ -181,11 +185,13 @@ async def synthesize_plans(plan_summaries_json: list) -> str:
         '  "timeline_estimate": "הערכת ציר זמן",\n'
         '  "warnings": ["אזהרה 1"],\n'
         '  "positives": ["נקודה חיובית 1"],\n'
-        '  "conflicts": ["סתירה בין תכניות אם קיימת"]\n'
+        '  "conflicts": ["סתירה בין תכניות אם קיימת"],\n'
+        '  "has_detailed_plan": <true אם יש לפחות תכנית מפורטת בתוקף, false אחרת>\n'
         "}\n\n"
         "כללים:\n"
         "- warnings/positives: עד 6 נקודות\n"
         "- conflicts: ריק אם אין סתירות\n"
+        "- has_detailed_plan: true רק אם קיימת תב\"ע מפורטת מאושרת\n"
         "- החזר JSON בלבד — ללא טקסט נוסף"
     )
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
