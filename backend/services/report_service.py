@@ -252,6 +252,11 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
     city_line = f", {city}" if city else ""
 
+    # לוג סינתזה + station_desc
+    print(f"[report_service] synthesis={synthesis}")
+    for p in plans_raw:
+        print(f"[report_service] station_desc raw: pl={p.pl_number} | station_desc={p.station_desc!r}")
+
     # הוסף נתוני סינתזה וחישובים לפרומפט
     synthesis_block = ""
     if synthesis:
