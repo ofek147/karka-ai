@@ -255,7 +255,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     # לוג סינתזה + station_desc
     print(f"[report_service] synthesis={synthesis}")
     for p in plans_raw:
-        print(f"[report_service] station_desc raw: pl={p.pl_number} | station_desc={p.station_desc!r}")
+        print(f"[report_service] plan status: pl={p.pl_number} | station_desc={p.station_desc!r} | internet_short_status={p.internet_short_status!r}")
 
     # הוסף נתוני סינתזה וחישובים לפרומפט
     synthesis_block = ""
