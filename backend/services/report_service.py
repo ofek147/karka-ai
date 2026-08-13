@@ -245,17 +245,19 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
 
     # ── 10. Claude final analysis ─────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
+    def _plan_status(p) -> str:
+        """internet_short_status הוא האמין — station_desc מחזיר 'אחר' כברירת מחדל בiplan."""
+        iss = (p.internet_short_status or "").strip()
+        if iss:
+            return iss
+        return _translate_status(p.station_desc or "")
+
     plans_list = "\n".join(
-        f"- {p.pl_name or p.mavat_name or p.pl_number} ({_translate_status(p.station_desc or '')})"
+        f"- {p.pl_name or p.mavat_name or p.pl_number} ({_plan_status(p)})"
         for p in plans_raw[:8]
     )
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
     city_line = f", {city}" if city else ""
-
-    # לוג סינתזה + station_desc
-    print(f"[report_service] synthesis={synthesis}")
-    for p in plans_raw:
-        print(f"[report_service] plan status: pl={p.pl_number} | station_desc={p.station_desc!r} | internet_short_status={p.internet_short_status!r}")
 
     # הוסף נתוני סינתזה וחישובים לפרומפט
     synthesis_block = ""
@@ -393,7 +395,7 @@ def _report_data_to_text(data: ReportData) -> str:
         "תכניות רלוונטיות:",
         *[
             f"  • {p.pl_name or p.mavat_name or p.pl_number}"
-            f"{' (' + _translate_status(p.station_desc) + ')' if p.station_desc and _translate_status(p.station_desc) else ''}"
+            f"{' (' + ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) + ')' if ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) else ''}"
             f"{' [' + _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
             for p in data.plans_raw[:8]
         ],
