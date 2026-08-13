@@ -88,6 +88,9 @@ class ReportData:
     plans_with_pdf: set
     plans_no_pdf: set
 
+    # sanity checks
+    sanity_warnings: List[str] = field(default_factory=list)
+
     # מטה
     created_at: str = field(default_factory=lambda: datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
 
@@ -294,23 +297,48 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         if unav:
             calc_block += f"\n- שווי קרקע לא זמינה (7 שנים): ₪{unav:,.0f}"
 
-    # P2 — breakdown שטחי ייעוד לפי Layer 4
+    # ── Sanity checks + breakdown Layer 4 ─────────────────────────────────────
+    RESIDENTIAL_KEYWORDS = ("מגורים",)
+    NON_RESIDENTIAL_KEYWORDS = ("דרך", "שצפ", "שצ", "שטח ציבורי", "מבנצ", "מבנ", "מוסדות ציבור")
     residential_sqm = 0.0
     non_residential_sqm = 0.0
-    RESIDENTIAL_KEYWORDS = ("מגורים",)
-    NON_RESIDENTIAL_KEYWORDS = ("דרך", "שצפ", "שטח ציבורי", "מבנצ", "מוסדות ציבור")
+    total_layer4_dunam = 0.0
     for lu in land_use_items:
-        yiud_str = lu.get("yiud", "")
+        yiud_str = lu.get("yiud", "") or ""
         area_d = lu.get("area_dunam") or 0
+        total_layer4_dunam += area_d
         area_m = area_d * 1000
         if any(k in yiud_str for k in RESIDENTIAL_KEYWORDS):
             residential_sqm += area_m
         elif any(k in yiud_str for k in NON_RESIDENTIAL_KEYWORDS):
             non_residential_sqm += area_m
 
+    # שני sanity checks נפרדים — חריגה למעלה / כיסוי חלקי
+    sanity_warnings = []
+    plot_dunam = (area_sqm or 0) / 1000
+    if plot_dunam > 0:
+        coverage = total_layer4_dunam / plot_dunam
+        if coverage > 1.10:
+            sanity_warnings.append(
+                "⚠️ נתוני הייעודים לחלקה זו הצביעו על חפיפה גיאומטרית (סכום הייעודים חורג משטח החלקה). "
+                "ייתכנו אי-דיוקים בחלוקת השטחים. מומלץ לאמת מול תצר."
+            )
+            print(f"[sanity] חריגה כלפי מעלה: coverage={coverage:.2f} | plot={plot_dunam}d | layer4={total_layer4_dunam}d")
+        elif coverage < 0.90 and total_layer4_dunam > 0:
+            sanity_warnings.append(
+                "⚠️ לא כל שטח החלקה מכוסה בנתוני ייעוד זמינים מ-iplan. "
+                "חלק מהשטח עשוי להיות מסווג בייעוד שאינו מפורט בדוח זה. מומלץ לבדוק מול תצר."
+            )
+            print(f"[sanity] כיסוי חלקי: coverage={coverage:.2f} | plot={plot_dunam}d | layer4={total_layer4_dunam}d")
+
+    # מספרים מוכנים לClaude (דטרמיניסטי — לא לגזירה)
     yiud_breakdown = ""
     if residential_sqm > 0 or non_residential_sqm > 0:
-        yiud_breakdown = f"\nשטח מגורים בחלקה: ~{residential_sqm:,.0f} מ\u0022ר | שטחים לא לבנייה: ~{non_residential_sqm:,.0f} מ\u0022ר"
+        yiud_breakdown = (
+            f"\nשטח מגורים בחלקה (Layer 4, מחושב): {residential_sqm:,.0f} מ\u0022ר"
+            f"\nשטח לא זמין לבנייה (דרכים/שצפ/מבנצ, מחושב): {non_residential_sqm:,.0f} מ\u0022ר"
+            f"\nשטח לא מסווג: {max(0, (area_sqm or 0) - residential_sqm - non_residential_sqm):,.0f} מ\u0022ר"
+        )
 
     ai_prompt = (
         f"נתוני חלקה:\n"
@@ -330,6 +358,12 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         "5. ציר זמן משוער — כמה שנים עד מימוש.\n"
         "6. שווי כלכלי — מה מחיר השוק אומר על הקרקע (אם יש נתונים).\n"
         "7. מה חובה לבדוק לפני קנייה.\n"
+        "\n"
+        "כלל מספרים — חובה:\n"
+        "כל מספר שתציין בניתוח חייב להגיע ישירות מהנתונים שקיבלת למעלה.\n"
+        "אסור לחשב, להעריך, או להסיק מספרים חדשים — כולל שטחים, אחוזים, חיסורים.\n"
+        "דוגמה אסורה: '7,624 פחות 3,174 שווה 4,450 מ\"ר פנויים' — אל תעשה זאת.\n"
+        "אם מספר לא נמצא בנתונים שקיבלת — כתוב 'לא ידוע' ולא תחשב אותו.\n"
         "אל תיתן ייעוץ השקעתי. אל תציין יח\"ד מבוססות יחס אזורי מתמל."
     )
 
@@ -357,6 +391,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         ai_analysis=ai_analysis,
         plans_with_pdf=plans_with_pdf,
         plans_no_pdf=plans_no_pdf,
+        sanity_warnings=sanity_warnings,
     )
 
 # ── פונקציות עזר ─────────────────────────────────────────────────────────────
@@ -472,7 +507,12 @@ def _report_data_to_text(data: ReportData) -> str:
         if len(calc_lines) > 2:
             lines += calc_lines
 
-    lines += [
+    # sanity warnings גלויים למשתמש
+    sanity_lines = []
+    for w in (data.sanity_warnings or []):
+        sanity_lines += ["", w]
+
+    lines += sanity_lines + [
         "",
         "ניתוח תכנוני:",
         data.ai_analysis,
