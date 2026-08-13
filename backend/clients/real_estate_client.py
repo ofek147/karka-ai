@@ -40,11 +40,15 @@ def _end_date() -> str:
 
 
 def _avg_price_per_sqm(deals: list) -> Optional[float]:
-    """ממוצע מחיר למ"ר — מסנן עסקאות עם שטח 0 או 1 (לא מייצגות)."""
+    """
+    ממוצע מחיר למ"ר.
+    dealAmount מגיע מה-API ב-אלפי שקלים (מקובל בנדל"ן ישראלי) → כופל ב-1000.
+    מסנן עסקאות עם שטח ≤5 מ"ר או סכום 0 (לא מייצגות).
+    """
     valid = [d for d in deals if d.get("assetArea", 0) > 5 and d.get("dealAmount", 0) > 0]
     if not valid:
         return None
-    prices = [d["dealAmount"] / d["assetArea"] for d in valid]
+    prices = [(d["dealAmount"] * 1000) / d["assetArea"] for d in valid]
     return round(sum(prices) / len(prices))
 
 
