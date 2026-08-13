@@ -104,10 +104,36 @@ async def set_cached_plan_summary(
     plan_number: str,
     summary: str,
 ) -> None:
-    """Save Claude summary for a plan (plan_text must already exist)."""
+    """Save Claude summary (free text, legacy) for a plan."""
     await db.execute(
         update(PlanCache)
         .where(PlanCache.plan_number == plan_number)
         .values(summary=summary)
+    )
+    await db.commit()
+
+
+async def get_cached_plan_summary_json(
+    db: AsyncSession,
+    plan_number: str,
+) -> Optional[str]:
+    """החזר סיכום JSON מובנה (שלב 1) מה-cache."""
+    result = await db.execute(
+        select(PlanCache).where(PlanCache.plan_number == plan_number)
+    )
+    row = result.scalar_one_or_none()
+    return row.summary_json if row else None
+
+
+async def set_cached_plan_summary_json(
+    db: AsyncSession,
+    plan_number: str,
+    summary_json: str,
+) -> None:
+    """שמור סיכום JSON מובנה לתכנית (שלב 1 output)."""
+    await db.execute(
+        update(PlanCache)
+        .where(PlanCache.plan_number == plan_number)
+        .values(summary_json=summary_json)
     )
     await db.commit()

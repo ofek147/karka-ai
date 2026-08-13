@@ -102,26 +102,104 @@ async def generate_title(first_message: str) -> str:
 
 async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str:
     """
-    Summarize a single plan PDF text into a concise planning summary.
-    Called once per plan, result cached in DB.
+    שלב 1: חילוץ נתונים מובנים מתכנית בודדת → JSON.
+    תוצאה נשמרת ב-plan_cache.summary_json.
     """
     prompt = (
-        f"להלן תוכן תכנית בניה רשמית:\n"
+        "אתה מומחה לתכנון ובנייה בישראל. קיבלת את הטקסט המלא של תכנית תכנון ישראלית.\n"
+        "המשימה שלך: לחלץ את המידע הבא בדיוק, בפורמט JSON בלבד. אם מידע לא קיים בטקסט — כתוב null.\n"
+        "החזר JSON בלבד — ללא טקסט לפני או אחרי, ללא markdown, ללא ```json.\n\n"
         f"שם תכנית: {plan_name}\n"
         f"מספר תכנית: {plan_number}\n\n"
-        f"{pdf_text}\n\n"
-        "סכם את התכנית ב-3-5 משפטים בעברית פשוטה. "
-        "התמקד ב: מה מותר לבנות, כמה יחידות/קומות/שטחים, "
-        "מה הסטטוס הנוכחי, ומה השפעתה על הקרקע. "
-        "אל תכלול ייעוץ השקעתי."
+        f"{pdf_text[:25000]}\n\n"
+        "JSON נדרש:\n"
+        "{\n"
+        '  "plan_name": "שם התכנית",\n'
+        '  "plan_number": "מספר התכנית",\n'
+        '  "plan_size_dunam": <מספר דונמים או null>,\n'
+        '  "initiator": "יוזם התכנית או null",\n'
+        '  "plan_stage": "שלב התכנית (תוקף/הפקדה/בתכנון וכו\')",\n'
+        '  "total_units": <מספר יחידות דיור או null>,\n'
+        '  "protected_housing_units": <דיור מוגן/דיור בר-השגה או null>,\n'
+        '  "commerce_employment_sqm": <מ"ר מסחר ותעסוקה או null>,\n'
+        '  "public_buildings_sqm": <מ"ר מבני ציבור או null>,\n'
+        '  "max_floors": <מספר קומות מקסימלי או null>,\n'
+        '  "timeline_estimate": "הערכת ציר זמן לאישור סופי",\n'
+        '  "warnings": ["אזהרה 1", "אזהרה 2"],\n'
+        '  "positives": ["נקודה חיובית 1", "נקודה חיובית 2"]\n'
+        "}\n\n"
+        "כללים:\n"
+        "- warnings ו-positives: עד 5 נקודות כל אחד\n"
+        "- ציר זמן: על בסיס שלב התכנית + תכניות דומות בישראל\n"
+        "- רק מידע שמופיע בטקסט — אל תמציא\n"
+        "- החזר JSON בלבד"
     )
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
     response = await client.messages.create(
         model="claude-sonnet-4-5-20250929",
-        max_tokens=600,
+        max_tokens=1000,
         messages=[{"role": "user", "content": prompt}],
     )
-    return response.content[0].text.strip()
+    raw = response.content[0].text.strip()
+    # ניקוי markdown אם Claude הוסיף בטעות
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0]
+    return raw.strip()
+
+
+async def synthesize_plans(plan_summaries_json: list) -> str:
+    """
+    שלב 2: סינתזה מרובת תכניות → JSON מאוחד עם כללי עדיפות.
+    plan_summaries_json: רשימת dict (תוצאות שלב 1 parsed).
+    תוצאה משמשת לחישובי שכבה 3 ולדוח הסופי.
+    """
+    import json
+    summaries_text = json.dumps(plan_summaries_json, ensure_ascii=False, indent=2)
+    prompt = (
+        "אתה מומחה לתכנון ובנייה בישראל. קיבלת מספר סיכומי תכניות הרלוונטיות לחלקה ספציפית.\n"
+        "המשימה: לסנתז את כל התכניות ל-JSON אחד מאוחד. החזר JSON בלבד.\n\n"
+        "כללי סינתזה:\n"
+        "- תכנית בתוקף גוברת על תכנית בהפקדה\n"
+        "- תכנית ספציפית (מקומית) גוברת על תכנית ארצית\n"
+        "- סתירה בין תכניות → ציין ב-conflicts\n"
+        "- נתון שונה בין תכניות → קח את המחמיר (פחות יחידות / פחות קומות)\n\n"
+        f"סיכומי תכניות:\n{summaries_text}\n\n"
+        "JSON נדרש:\n"
+        "{\n"
+        '  "primary_plan": "שם התכנית הדומיננטית",\n'
+        '  "all_plans": ["שם1", "שם2"],\n'
+        '  "plan_stage": "שלב משולב",\n'
+        '  "total_units": <מספר יחידות אחרי סינתזה או null>,\n'
+        '  "protected_housing_units": <או null>,\n'
+        '  "commerce_employment_sqm": <או null>,\n'
+        '  "public_buildings_sqm": <או null>,\n'
+        '  "max_floors": <או null>,\n'
+        '  "plan_size_dunam": <גודל התכנית הדומיננטית או null>,\n'
+        '  "initiator": "יוזם או null",\n'
+        '  "timeline_estimate": "הערכת ציר זמן",\n'
+        '  "warnings": ["אזהרה 1"],\n'
+        '  "positives": ["נקודה חיובית 1"],\n'
+        '  "conflicts": ["סתירה בין תכניות אם קיימת"]\n'
+        "}\n\n"
+        "כללים:\n"
+        "- warnings/positives: עד 6 נקודות\n"
+        "- conflicts: ריק אם אין סתירות\n"
+        "- החזר JSON בלבד — ללא טקסט נוסף"
+    )
+    client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
+    response = await client.messages.create(
+        model="claude-sonnet-4-5-20250929",
+        max_tokens=1200,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = response.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("\n", 1)[-1]
+        if raw.endswith("```"):
+            raw = raw.rsplit("```", 1)[0]
+    return raw.strip()
 
 
 async def _call_claude(messages: List[Dict[str, str]]) -> str:

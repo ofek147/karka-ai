@@ -51,6 +51,8 @@ async def init_db():
             "ALTER TABLE leads ADD COLUMN IF NOT EXISTS parcels JSONB DEFAULT '[]'",
             # plan_cache: add summary column
             "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS summary TEXT",
+            # plan_cache: add summary_json column (שלב 1 structured JSON)
+            "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS summary_json TEXT",
         ]
         from sqlalchemy import text
         for sql in migrations:

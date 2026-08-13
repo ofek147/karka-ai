@@ -23,8 +23,11 @@ class PlanCache(Base):
     # Extracted text from PDF (full raw text)
     pdf_text: Mapped[str] = mapped_column(Text, nullable=False)
 
-    # Claude summary of this plan — cached separately, generated after pdf_text
+    # Claude summary — free text (legacy, kept for compat)
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+    # Claude summary — structured JSON (שלב 1 output: total_units, plan_size_dunam, warnings, positives...)
+    summary_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     # Source URL that was fetched
     pdf_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)

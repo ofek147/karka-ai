@@ -1,21 +1,27 @@
 """
-report_service.py — שולף נתונים על חלקה ומייצר סיכום טקסט
+report_service.py — שולף נתונים על חלקה ומייצר ReportData מובנה
 
 Flow:
 1. govmap — parcel geometry (centroid EPSG:3857, area)
 2. Convert centroid EPSG:3857 → TM35 (EPSG:2039) for iplan
 3. iplan Layer 1 — plans with full metadata
 4. iplan Layer 4 — land use zones
-5. mavat — PDF text per plan → cached in DB
-6. Claude — summarize each plan (Haiku), then final analysis (Sonnet)
-7. Return formatted Hebrew text string
+5. real_estate — עסקאות + מחיר למ"ר (parallel עם iplan)
+6. mavat — PDF text per plan → cached in DB
+7. Claude שלב 1 — summarize_plan() per plan → JSON (cached in DB as summary_json)
+8. Claude שלב 2 — synthesize_plans() → JSON מסונתז
+9. Calculations שכבה 3 — חישובי שווי + חלק יחסי
+10. Claude final analysis — ניתוח Hebrew חופשי
+11. Return ReportData מובנה
 """
 
 from __future__ import annotations
 
 import asyncio
 import datetime
+import json
 import re
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,12 +29,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..clients.govmap_client import get_parcel_geometry
 from ..clients.iplan_client import get_plans_by_centroid, get_land_use_by_centroid
 from ..clients.mavat_client import fetch_plan_pdf_text_from_url
-from ..services.claude_service import _call_claude, summarize_plan
+from ..clients.real_estate_client import get_real_estate_stats
+from ..services.claude_service import _call_claude, summarize_plan, synthesize_plans
 from ..services.plan_cache_service import (
     get_cached_plan,
     set_cached_plan_text,
     set_cached_plan_summary,
+    get_cached_plan_summary_json,
+    set_cached_plan_summary_json,
 )
+from ..services.calculations import compute_parcel_layer3
 from ..utils.report_utils import (
     _translate_status, _translate_yiud,
     _epoch_to_year, _classify_plan,
@@ -41,48 +51,93 @@ def _reproject(x: float, y: float) -> tuple:
     return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True).transform(x, y)
 
 
-async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession] = None) -> str:
+def _parse_json_safe(raw: str) -> Optional[dict]:
+    """Parse JSON string safely, return None on failure."""
+    try:
+        return json.loads(raw)
+    except Exception:
+        return None
+
+
+# ── מבנה נתוני הדוח ──────────────────────────────────────────────────────────
+
+@dataclass
+class ReportData:
     """
-    Fetch all data for a parcel and return a formatted Hebrew text report.
+    נתוני הדוח המלא — 3 שכבות + ניתוח.
+    מוחזר מ-generate_report() ומשמש לעיבוד HTML ו-text.
+    """
+    # Layer 1 — ספציפי לחלקה
+    gush: int
+    helka: int
+    city: str
+    area_sqm: Optional[float]
+    area_dunam: Optional[float]
+    land_use_items: List[Dict]          # [{yiud, yiud_explained, area_dunam}]
+    plans_raw: List[Any]                # PlanInfo objects
+
+    # Layer 2 — גנרי מסינתזת תכניות
+    plan_summaries_json: List[dict]     # תוצאות שלב 1 per plan
+    synthesis: Optional[dict]          # תוצאת שלב 2 (synthesize_plans)
+
+    # Layer 3 — חישובים
+    calculations: Optional[dict]       # ParcelCalculations.to_dict()
+
+    # ניתוח סופי
+    ai_analysis: str
+    plans_with_pdf: set
+    plans_no_pdf: set
+
+    # מטה
+    created_at: str = field(default_factory=lambda: datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
+
+
+# ── פונקציה ראשית ────────────────────────────────────────────────────────────
+
+async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = None) -> ReportData:
+    """
+    מייצר ReportData מלא לחלקה.
 
     Args:
         gush:  Block number (מספר גוש)
         helka: Parcel number (מספר חלקה)
-        db:    Optional DB session for plan cache (PDF text + summaries)
+        db:    Optional DB session for plan cache
 
     Returns:
-        Formatted Hebrew text string.
+        ReportData מובנה
     """
     # ── 1. govmap: parcel geometry ────────────────────────────────────────────
     parcel = await get_parcel_geometry(gush, helka)
-
-    centroid_x = parcel.centroid_x   # EPSG:3857
-    centroid_y = parcel.centroid_y   # EPSG:3857
+    centroid_x = parcel.centroid_x
+    centroid_y = parcel.centroid_y
     area_sqm   = parcel.area_sqm
     area_dunam = round(area_sqm / 1000, 3) if area_sqm else None
 
-    # ── 2. Convert to TM35 for iplan ─────────────────────────────────────────
+    # ── 2. Convert to TM35 ───────────────────────────────────────────────────
     cx_tm35: Optional[float] = None
     cy_tm35: Optional[float] = None
     if centroid_x and centroid_y:
         cx_tm35, cy_tm35 = _reproject(centroid_x, centroid_y)
 
-    # ── 3. iplan: plans + land use (parallel) ─────────────────────────────────
+    # ── 3. iplan + real_estate — parallel ────────────────────────────────────
     plans_raw: List[Any] = []
     land_use_raw: List[Any] = []
+    re_stats = None
+
     if cx_tm35 and cy_tm35:
-        plans_raw, land_use_raw = await asyncio.gather(
+        plans_raw, land_use_raw, re_stats = await asyncio.gather(
             _safe(get_plans_by_centroid(cx_tm35, cy_tm35), [], "plans"),
             _safe(get_land_use_by_centroid(cx_tm35, cy_tm35), [], "land_use"),
+            _safe(get_real_estate_stats(gush, helka), None, "real_estate"),
         )
 
-    # ── 4. Sort plans: local(1) → district(2) → national(3) ──────────────────
+    # ── 4. Sort plans ─────────────────────────────────────────────────────────
     plans_raw.sort(key=lambda p: _classify_plan(p))
 
-    # ── 5. Extract city name ──────────────────────────────────────────────────
+    # ── 5. Extract city ───────────────────────────────────────────────────────
     city = _extract_city(plans_raw)
 
-    # ── 6. Build land use display ─────────────────────────────────────────────
+    # ── 6. Land use display ───────────────────────────────────────────────────
     land_use_items: List[Dict] = []
     seen: set = set()
     for lu in land_use_raw:
@@ -90,15 +145,16 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
         if yiud and yiud not in seen:
             seen.add(yiud)
             land_use_items.append({
-                "yiud":          yiud,
+                "yiud":           yiud,
                 "yiud_explained": _translate_yiud(yiud),
-                "area_dunam":    lu.area_dunam,
+                "area_dunam":     lu.area_dunam,
             })
 
-    # ── 7. Fetch PDF + summarize each plan (sequential, cached) ──────────────
-    plan_summaries: List[str] = []
-    plans_with_pdf: set = set()   # pl_number של תכניות שיש להן הוראות
-    plans_no_pdf: set = set()     # pl_number של תכניות בלי הוראות זמינות
+    # ── 7. שלב 1: summarize each plan → JSON (cached as summary_json) ─────────
+    plan_summaries_json: List[dict] = []
+    plans_with_pdf: set = set()
+    plans_no_pdf: set = set()
+
     if db is not None:
         fetch_candidates = [
             p for p in plans_raw
@@ -112,15 +168,20 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
                 except Exception:
                     pass
 
+            # בדוק cache summary_json קודם
+            cached_json_str = await get_cached_plan_summary_json(db, plan.pl_number)
+            if cached_json_str:
+                parsed = _parse_json_safe(cached_json_str)
+                if parsed:
+                    plan_summaries_json.append(parsed)
+                    plans_with_pdf.add(plan.pl_number)
+                    print(f"[report_service] Plan {plan.pl_number}: summary_json from cache")
+                    continue
+
+            # בדוק cache pdf_text
             cached_row = await get_cached_plan(db, plan.pl_number, last_modified=last_modified)
-
-            if cached_row and cached_row.summary:
-                plan_summaries.append(cached_row.summary)
-                plans_with_pdf.add(plan.pl_number)
-                print(f"[report_service] Plan {plan.pl_number}: summary from cache")
-                continue
-
             pdf_text = cached_row.pdf_text if cached_row else None
+
             if not pdf_text:
                 pdf_text = await fetch_plan_pdf_text_from_url(plan.pl_url)
                 if pdf_text:
@@ -133,40 +194,101 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
 
             try:
                 label = plan.pl_name or plan.pl_number or plan.mavat_name or ""
-                summary = await summarize_plan(
+                raw_json_str = await summarize_plan(
                     plan_name=label,
                     plan_number=plan.pl_number or "",
                     pdf_text=pdf_text,
                 )
-                await set_cached_plan_summary(db, plan.pl_number, summary)
-                plan_summaries.append(summary)
-                plans_with_pdf.add(plan.pl_number)
-                print(f"[report_service] Plan {plan.pl_number}: summarized ({len(summary)} chars)")
+                # שמור ב-DB
+                await set_cached_plan_summary_json(db, plan.pl_number, raw_json_str)
+                # שמור גם ב-summary (legacy)
+                await set_cached_plan_summary(db, plan.pl_number, raw_json_str)
+
+                parsed = _parse_json_safe(raw_json_str)
+                if parsed:
+                    plan_summaries_json.append(parsed)
+                    plans_with_pdf.add(plan.pl_number)
+                    print(f"[report_service] Plan {plan.pl_number}: summarized JSON ({len(raw_json_str)} chars)")
+                else:
+                    print(f"[report_service] Plan {plan.pl_number}: JSON parse failed, skipping")
+                    plans_no_pdf.add(plan.pl_number)
+
             except Exception as e:
                 plans_no_pdf.add(plan.pl_number)
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
-    # ── 8. Claude final analysis ──────────────────────────────────────────────
+    # ── 8. שלב 2: synthesize_plans → JSON מסונתז ─────────────────────────────
+    synthesis: Optional[dict] = None
+    if plan_summaries_json:
+        try:
+            raw_synthesis = await synthesize_plans(plan_summaries_json)
+            synthesis = _parse_json_safe(raw_synthesis)
+            if not synthesis:
+                print(f"[report_service] synthesis JSON parse failed, using first plan summary")
+                synthesis = plan_summaries_json[0] if plan_summaries_json else None
+        except Exception as e:
+            print(f"[report_service] synthesize_plans error: {e}")
+
+    # ── 9. שכבה 3: חישובים ───────────────────────────────────────────────────
+    calculations: Optional[dict] = None
+    if synthesis:
+        try:
+            calc = compute_parcel_layer3(
+                parcel_size_sqm=area_sqm,
+                synthesis=synthesis,
+                re_stats=re_stats,
+                approval_years=7,
+            )
+            calculations = calc.to_dict()
+        except Exception as e:
+            print(f"[report_service] calculations error: {e}")
+
+    # ── 10. Claude final analysis ─────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
     plans_list = "\n".join(
         f"- {p.pl_name or p.mavat_name or p.pl_number} ({_translate_status(p.station_desc or '')})"
         for p in plans_raw[:8]
     )
-    summaries_block = (
-        "\n\nסיכומי תכניות (מתוך PDFs רשמיים):\n"
-        + "\n".join(f"- {s[:1000]}" for s in plan_summaries)
-    ) if plan_summaries else ""
-
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
     city_line = f", {city}" if city else ""
+
+    # הוסף נתוני סינתזה וחישובים לפרומפט
+    synthesis_block = ""
+    if synthesis:
+        u = synthesis.get("total_units")
+        sz = synthesis.get("plan_size_dunam")
+        stage = synthesis.get("plan_stage", "")
+        timeline = synthesis.get("timeline_estimate", "")
+        synthesis_block = f"\n\nסינתזת תכניות: {u or '?'} יח\"ד, {sz or '?'} דונם, שלב: {stage}, ציר זמן: {timeline}"
+        if synthesis.get("warnings"):
+            synthesis_block += f"\nאזהרות: {'; '.join(synthesis['warnings'][:3])}"
+
+    calc_block = ""
+    if calculations:
+        av = calculations.get("available_land_value")
+        unav = calculations.get("unavailable_land_value")
+        ppm = calculations.get("price_per_sqm")
+        eu = calculations.get("estimated_units_for_parcel")
+        note = calculations.get("price_note", "")
+        calc_block = (
+            f"\n\nנתונים כלכליים (לצרכי הצגה בלבד):"
+            f"\n- מחיר למ\"ר: ₪{ppm:,.0f} ({note})" if ppm else ""
+        )
+        if eu:
+            calc_block += f"\n- יח\"ד משוערות לחלקה: {eu}"
+        if av:
+            calc_block += f"\n- שווי קרקע זמינה (ל-100 מ\"ר): ₪{av:,.0f}"
+        if unav:
+            calc_block += f"\n- שווי קרקע לא זמינה (7 שנים): ₪{unav:,.0f}"
 
     ai_prompt = (
         f"נתוני חלקה:\n"
         f"גוש {gush}, חלקה {helka}{city_line}\n"
         f"שטח: {area_line}\n"
         f"ייעודי קרקע: {yiud_list}\n\n"
-        f"תכניות בתוקף:\n{plans_list}"
-        f"{summaries_block}\n\n"
+        f"תכניות רלוונטיות:\n{plans_list}"
+        f"{synthesis_block}"
+        f"{calc_block}\n\n"
         "כתוב ניתוח תכנוני בעברית פשוטה (6-10 משפטים) עבור משקיע פרטי.\n"
         "התחל ישירות עם הניתוח — ללא פתיחה כמו 'הנה', 'היי', 'בהחלט' וכו'.\n"
         "כסה: מצב תכנוני נוכחי, מה מותר לבנות (יחידות/קומות/שטחים אם ידוע), "
@@ -184,45 +306,32 @@ async def generate_report_text(gush: int, helka: int, db: Optional[AsyncSession]
     except Exception as e:
         print(f"[report_service] Claude error: {e}")
 
-    # ── 9. Compose final text ─────────────────────────────────────────────────
-    created_at = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+    return ReportData(
+        gush=gush,
+        helka=helka,
+        city=city,
+        area_sqm=area_sqm,
+        area_dunam=area_dunam,
+        land_use_items=land_use_items,
+        plans_raw=plans_raw,
+        plan_summaries_json=plan_summaries_json,
+        synthesis=synthesis,
+        calculations=calculations,
+        ai_analysis=ai_analysis,
+        plans_with_pdf=plans_with_pdf,
+        plans_no_pdf=plans_no_pdf,
+    )
 
-    lines = [
-        f"דוח תכנוני — גוש {gush}, חלקה {helka}",
-        f"{'עיר: ' + city if city else ''}",
-        f"שטח: {area_line}",
-        f"תאריך הפקה: {created_at}",
-        "",
-        "ייעוד קרקע:",
-        *[
-            f"  • {lu['yiud']}" if lu['yiud'] == lu['yiud_explained']
-            else f"  • {lu['yiud']} ({lu['yiud_explained']})"
-            for lu in land_use_items
-        ],
-        "",
-        "תכניות רלוונטיות:",
-        *[
-            f"  • {p.pl_name or p.mavat_name or p.pl_number} — {_translate_status(p.station_desc or '')}"
-            f"{' [' + _epoch_to_year(p.pl_date_8 or p.pl_date7) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
-            f"{'  [סוכם מהוראות]' if p.pl_number in plans_with_pdf else ('  [אין הוראות זמינות]' if p.pl_number in plans_no_pdf else '')}"
-            for p in plans_raw[:8]
-        ],
-        "",
-        "ניתוח תכנוני:",
-        ai_analysis,
-        "",
-        "---",
-        "karkAi — ניתוח קרקעות חכם | המידע אינו מהווה ייעוץ משפטי או השקעתי.",
-    ]
-
-    return "\n".join(line for line in lines if line is not None)
-
+# ── פונקציות עזר ─────────────────────────────────────────────────────────────
 
 async def _safe(coro, default, label: str):
     """Run a coroutine safely, returning default on error."""
     try:
         result = await coro
-        print(f"[report_service] {label}: {len(result) if isinstance(result, list) else 'ok'}")
+        if isinstance(result, list):
+            print(f"[report_service] {label}: {len(result)}")
+        else:
+            print(f"[report_service] {label}: ok")
         return result
     except Exception as e:
         import traceback
@@ -250,3 +359,71 @@ def _extract_city(plans_raw: list) -> str:
         if district and not _is_district(district) and not city:
             city = district.strip()
     return city
+
+
+# ── Backward compatibility ────────────────────────────────────────────────────
+
+async def generate_report_text(gush: int, helka: int, db=None) -> str:
+    """
+    Legacy wrapper — מחזיר text string.
+    Worker.py קורא לפונקציה הזו — נשמרת לתאימות לאחור.
+    """
+    data = await generate_report(gush, helka, db=db)
+    return _report_data_to_text(data)
+
+
+def _report_data_to_text(data: ReportData) -> str:
+    """המר ReportData ל-text string (לשימוש ב-email / legacy)."""
+    area_line = f"{data.area_sqm:.0f} מ\"ר ({data.area_dunam} דונם)" if data.area_sqm else "לא ידוע"
+
+    lines = [
+        f"דוח תכנוני — גוש {data.gush}, חלקה {data.helka}",
+        f"{'עיר: ' + data.city if data.city else ''}",
+        f"שטח: {area_line}",
+        f"תאריך הפקה: {data.created_at}",
+        "",
+        "ייעוד קרקע:",
+        *[f"  • {lu['yiud']}" for lu in data.land_use_items],
+        "",
+        "תכניות רלוונטיות:",
+        *[
+            f"  • {p.pl_name or p.mavat_name or p.pl_number}"
+            f"{' (' + _translate_status(p.station_desc) + ')' if p.station_desc and _translate_status(p.station_desc) else ''}"
+            f"{' [' + _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
+            for p in data.plans_raw[:8]
+        ],
+    ]
+
+    # הערכה כלכלית — שכבה 3
+    if data.calculations:
+        c = data.calculations
+        calc_lines = ["", "הערכה כלכלית:"]
+        if c.get("estimated_units_for_parcel"):
+            calc_lines.append(f"  • יח\"ד משוערות לחלקה: {c['estimated_units_for_parcel']:.1f}")
+        if c.get("sqm_per_unit"):
+            calc_lines.append(f"  • מ\"ר קרקע ליח\"ד: {c['sqm_per_unit']:.0f} מ\"ר")
+        if c.get("price_per_sqm"):
+            note = "*" if c.get("price_source") == "fallback" else ""
+            calc_lines.append(f"  • מחיר למ\"ר: ₪{c['price_per_sqm']:,.0f}{note}")
+        if c.get("apartment_price_100"):
+            calc_lines.append(f"  • מחיר דירה 100 מ\"ר: ₪{c['apartment_price_100']:,.0f}")
+        if c.get("available_land_value"):
+            calc_lines.append(f"  • שווי קרקע זמינה (ל-100 מ\"ר): ₪{c['available_land_value']:,.0f}")
+        if c.get("unavailable_land_value"):
+            years = c.get("approval_years", 7)
+            calc_lines.append(f"  • שווי קרקע לא זמינה ({years} שנים): ₪{c['unavailable_land_value']:,.0f}")
+        if c.get("price_source") == "fallback":
+            calc_lines.append("  * מחיר דוגמתי — יעודכן לפי נתוני שוק")
+        if len(calc_lines) > 2:
+            lines += calc_lines
+
+    lines += [
+        "",
+        "ניתוח תכנוני:",
+        data.ai_analysis,
+        "",
+        "---",
+        "karkAi — ניתוח קרקעות חכם | המידע אינו מהווה ייעוץ משפטי או השקעתי.",
+    ]
+
+    return "\n".join(line for line in lines if line is not None)
