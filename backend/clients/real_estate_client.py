@@ -41,14 +41,24 @@ def _end_date() -> str:
 
 def _avg_price_per_sqm(deals: list) -> Optional[float]:
     """
-    ממוצע מחיר למ"ר.
-    dealAmount מגיע מה-API ב-אלפי שקלים (מקובל בנדל"ן ישראלי) → כופל ב-1000.
-    מסנן עסקאות עם שטח ≤5 מ"ר או סכום 0 (לא מייצגות).
+    ממוצע מחיר למ"ר בשקלים.
+    dealAmount = שקלים מלאים (לא אלפים).
+    סינון עסקאות לא סבירות:
+      - assetArea < 30 מ"ר (אין דירה כזו) או > 600 מ"ר (קרקע ולא דירה)
+      - dealAmount == 0
     """
-    valid = [d for d in deals if d.get("assetArea", 0) > 5 and d.get("dealAmount", 0) > 0]
+    valid = [
+        d for d in deals
+        if 30 <= d.get("assetArea", 0) <= 600
+        and d.get("dealAmount", 0) > 0
+    ]
     if not valid:
         return None
-    prices = [(d["dealAmount"] * 1000) / d["assetArea"] for d in valid]
+    prices = [d["dealAmount"] / d["assetArea"] for d in valid]
+    # סנן outliers: רק מחירים בטווח הגיוני לנדל"ן בישראל (3,000–5 ,000 עד 70,000 שקל למ"ר)
+    prices = [p for p in prices if 3_000 <= p <= 70_000]
+    if not prices:
+        return None
     return round(sum(prices) / len(prices))
 
 
