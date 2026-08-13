@@ -255,28 +255,67 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             return iss
         return _translate_status(p.station_desc or "")
 
+    # ── iplan_status_map: authoritative status per plan_number ──────────────
+    iplan_status_map = {(p.pl_number or ""): _plan_status(p) for p in plans_raw}
+
+    # conflict log: cache plan_stage vs iplan real-time status
+    APPROVED_STATUSES = {"התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה"}
+    for s in plan_summaries_json:
+        pnum = s.get("plan_number", "")
+        cached_stage = s.get("plan_stage", "")
+        iplan_stage = iplan_status_map.get(pnum, "")
+        if cached_stage and iplan_stage and cached_stage != iplan_stage:
+            print(f"[conflict-log] plan={pnum} | cache='{cached_stage}' | iplan='{iplan_stage}' → using iplan")
+        # override plan_stage מ-iplan
+        if iplan_stage:
+            s["plan_stage"] = iplan_stage
+        # plan_type — נגזר מ-plan_number בקוד, לא Claude
+        def _derive_plan_type(n: str) -> str:
+            n = (n or "").strip()
+            if any(n.startswith(p) for p in ("תמ\"א", "תתל", "תמל", "תמ/א")):
+                return "ארצית"
+            if n.startswith("תמח"):
+                return "מחוזית"
+            if n.startswith("תמ"):
+                return "מתארית"
+            return "מפורטת"
+        if pnum:
+            s["plan_type"] = _derive_plan_type(pnum)
+        # can_issue_permit — מ-iplan בלבד
+        pt = s.get("plan_type", "")
+        s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES and pt == "מפורטת")
+
     plans_list = "\n".join(
-        f"- {p.pl_name or p.mavat_name or p.pl_number} ({_plan_status(p)})"
+        f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_status(p)})"
         for p in plans_raw[:8]
     )
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
     city_line = f", {city}" if city else ""
 
-    # הוסף נתוני סינתזה וחישובים לפרומפט
+    # synthesis block — controlled values בלבד
     synthesis_block = ""
     if synthesis:
+        primary = synthesis.get("primary_plan", "")
+        iplan_primary_stage = iplan_status_map.get(primary, "")
+        stage = iplan_primary_stage or synthesis.get("plan_stage", "")
+        has_detailed = synthesis.get("has_detailed_plan", False)
+        timeline = synthesis.get("timeline_estimate", "")
+        max_floors = synthesis.get("max_floors")
         u = synthesis.get("total_units")
         sz = synthesis.get("plan_size_dunam")
-        stage = synthesis.get("plan_stage", "")
-        timeline = synthesis.get("timeline_estimate", "")
-        primary = synthesis.get("primary_plan", "")
-        has_detailed = synthesis.get("has_detailed_plan", False)
-        # P2: ציטוט מקור ליד נתונים כמותיים
-        src_note = f" (מקור: {primary})" if primary else ""
-        synthesis_block = f"\n\nסינתזת תכניות: שלב: {stage}, ציר זמן: {timeline}"
-        if u and sz:
-            synthesis_block += f"\nנתוני תכנית{src_note}: {u:,} יח\"ד על {sz:,} דונם — אלו נתוני התכנית הכוללת, לא ספציפיים לחלקה"
-        synthesis_block += f"\nהיתרי בנייה: {'קיימת תכנית מפורטת בתוקף' if has_detailed else 'נדרשת תכנית מפורטת'}"
+        synthesis_block = f"\n\nמצב תכנוני (נתונים מ-iplan):"
+        synthesis_block += f"\n- היתרי בנייה: {'קיימת תכנית מפורטת בתוקף' if has_detailed else 'נדרשת תכנית מפורטת — לא ניתן להגיש היתר ישירות'}"
+        if stage:
+            synthesis_block += f"\n- סטטוס תכנית ראשית ({primary or 'לא ידוע'}): {stage}"
+        if u and sz and primary:
+            synthesis_block += (
+                f"\n- נתוני תכנית כוללת (מקור: {primary}, לא ספציפי לחלקה): "
+                f"{u:,} יח\"ד על {sz:,} דונם"
+            )
+        if timeline:
+            synthesis_block += f"\n- ציר זמן (הערכה מ-PDF בלבד, לא confirmed): {timeline}"
+        if max_floors:
+            synthesis_block += f"\n- קומות מקסימום (הערכה מ-PDF בלבד, לא confirmed): {max_floors}"
         if synthesis.get("warnings"):
             synthesis_block += f"\nאזהרות: {'; '.join(synthesis['warnings'][:3])}"
 
@@ -364,6 +403,12 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         "אסור לחשב, להעריך, או להסיק מספרים חדשים — כולל שטחים, אחוזים, חיסורים.\n"
         "דוגמה אסורה: '7,624 פחות 3,174 שווה 4,450 מ\"ר פנויים' — אל תעשה זאת.\n"
         "אם מספר לא נמצא בנתונים שקיבלת — כתוב 'לא ידוע' ולא תחשב אותו.\n"
+        "\n"
+        "כלל סטטוס תכניות — חובה:\n"
+        "הסטטוס הרשמי של כל תכנית מוגדר בשדה 'סטטוס' שקיבלת ברשימת התכניות.\n"
+        "אסור לשנות, לפרש, או להסיק סטטוס אחר מהטקסט — גם אם הנוסח בPDF נשמע אחרת.\n"
+        "דוגמה אסורה: לכתוב 'תכנית מאושרת' אם הסטטוס שקיבלת הוא 'בתהליך הפקדה'.\n"
+        "נתוני ציר זמן וקומות מסומנים כ'הערכה מ-PDF בלבד' — ציין זאת בפירוש בניתוח.\n"
         "אל תיתן ייעוץ השקעתי. אל תציין יח\"ד מבוססות יחס אזורי מתמל."
     )
 
