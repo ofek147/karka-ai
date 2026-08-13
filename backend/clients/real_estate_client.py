@@ -41,21 +41,22 @@ def _end_date() -> str:
 
 def _avg_price_per_sqm(deals: list) -> Optional[float]:
     """
-    ממוצע מחיר למ"ר בשקלים.
+    ממוצע מחיר למ"ר בשקלים — דירות בלבד.
     dealAmount = שקלים מלאים (לא אלפים).
-    סינון עסקאות לא סבירות:
-      - assetArea < 30 מ"ר (אין דירה כזו) או > 600 מ"ר (קרקע ולא דירה)
-      - dealAmount == 0
+    סינון:
+      - propertyTypeDescription == 'דירה' (מסנן קרקעות + None)
+      - assetArea 30–600 מ"ר (טווח דירה סביר)
+      - מחיר למ"ר 3,000–70,000 ₪ (מסנן outliers)
     """
     valid = [
         d for d in deals
-        if 30 <= d.get("assetArea", 0) <= 600
+        if d.get("propertyTypeDescription") == "דירה"
+        and 30 <= d.get("assetArea", 0) <= 600
         and d.get("dealAmount", 0) > 0
     ]
     if not valid:
         return None
     prices = [d["dealAmount"] / d["assetArea"] for d in valid]
-    # סנן outliers: רק מחירים בטווח הגיוני לנדל"ן בישראל (3,000–5 ,000 עד 70,000 שקל למ"ר)
     prices = [p for p in prices if 3_000 <= p <= 70_000]
     if not prices:
         return None
@@ -117,13 +118,12 @@ async def get_real_estate_stats(gush: int, helka: int) -> RealEstateStats:
         או ערכי None בכל השדות אם השליפה נכשלה.
     """
     try:
-        # שלוף כל הנתונים במקביל — 5 שנים, נחתוך אחר כך לטווחים קצרים
-        # Total budget: 20s for all 3 endpoints combined
+        # שלוף 3 שנים במקביל — מאזן בין עדכניות לנציגות סטטיסטית
         parcel_5y_raw, neighborhood_5y_raw, settlement_5y_raw = await asyncio.wait_for(
             asyncio.gather(
-                _fetch_deals("street-deals", gush, helka, 5),
-                _fetch_deals("neighborhood-deals", gush, helka, 5),
-                _fetch_deals("settlement-deals", gush, helka, 5),
+                _fetch_deals("street-deals", gush, helka, 3),
+                _fetch_deals("neighborhood-deals", gush, helka, 3),
+                _fetch_deals("settlement-deals", gush, helka, 3),
             ),
             timeout=20.0,
         )
