@@ -126,13 +126,17 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         '  "max_floors": <מספר קומות מקסימלי או null>,\n'
         '  "timeline_estimate": "הערכת ציר זמן לאישור סופי",\n'
         '  "plan_type": "ארצית/מחוזית/מתארית/מפורטת — בחר אחד",\n'
-        '  "can_issue_permit": <true אם תכנית מפורטת בתוקף, false אחרת>,\n'
+        '  "grants_permits": <true אם כתוב במפורש ''ניתן להוציא היתר'' או ''תוכנית שמכוחה ניתן להוציא היתרים'', false אחרת, null אם לא מוזכר>,\n'
+        '  "contains_detailed_provisions": <true אם כתוב במפורש ''מכילה הוראות של תכנית מפורטת'', false אחרת, null אם לא מוזכר>,\n'
+        '  "can_issue_permit": <true אם grants_permits=true, או plan_type=מפורטת ו-plan_stage=בתוקף>,\n'
         '  "warnings": ["אזהרה 1", "אזהרה 2"],\n'
         '  "positives": ["נקודה חיובית 1", "נקודה חיובית 2"]\n'
         "}\n\n"
         "כללים:\n"
         "- plan_type: תמ\"א/תתל/תמל = ארצית, תמח = מחוזית, תמ = מתארית, תב\"ע/תכנית מפורטת = מפורטת\n"
-        "- can_issue_permit: true רק אם תכנית מפורטת מאושרת — מתארית/ארצית = false\n"
+        "- grants_permits: חלץ מהטקסט בלבד — אל תנחש לפי plan_type. תת\"ל/תמ\"ל יכולות להיות true.\n"
+        "- contains_detailed_provisions: חלץ מהטקסט בלבד — אל תנחש.\n"
+        "- can_issue_permit: true אם grants_permits=true, או plan_type=מפורטת ו-plan_stage=בתוקף\n"
         "- warnings ו-positives: עד 5 נקודות כל אחד\n"
         "- ציר זמן: על בסיס שלב התכנית + תכניות דומות בישראל\n"
         "- רק מידע שמופיע בטקסט — אל תמציא\n"
@@ -188,8 +192,10 @@ async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None
         "המשימה: לסנתז את כל התכניות ל-JSON אחד מאוחד. החזר JSON בלבד.\n\n"
         "כללי סינתזה:\n"
         "- תכנית בתוקף גוברת על תכנית בהפקדה\n"
-        "- תכנית ספציפית (מקומית) גוברת על תכנית ארצית\n"
-        "- סתירה בין תכניות → ציין ב-conflicts\n"
+        "- grants_permits=true גוברת — ללא קשר לסוג התכנית (תת\"ל/תמ\"ל ארציות יכולות לאפשר היתר ישירות)\n"
+        "- אל תניח ש\"ספציפית > ארצית\" — הסתמך על grants_permits ו-contains_detailed_provisions בלבד\n"
+        "- סתירה אמיתית (אין יחס ידוע בין התכניות) → ציין ב-conflicts\n"
+        "- יחס ידוע (A משנה את B, C מבטלת D) → אל תציין כ-conflict\n"
         "- נתון שונה בין תכניות → קח את המחמיר (פחות יחידות / פחות קומות)\n\n"
         + missing_block
         + "סיכומי תכניות:\n" + summaries_text + "\n\n"
@@ -214,7 +220,7 @@ async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None
         "כללים:\n"
         "- warnings/positives: עד 6 נקודות\n"
         "- conflicts: ריק אם אין סתירות\n"
-        '- has_detailed_plan: true רק אם קיימת תב"ע מפורטת מאושרת\n'
+        '- has_detailed_plan: true אם קיימת תב"ע מפורטת מאושרת, או אם תכנית כלשהי grants_permits=true\n'
         "- החזר JSON בלבד — ללא טקסט נוסף"
     )
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
