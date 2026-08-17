@@ -53,6 +53,9 @@ async def init_db():
             "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS summary TEXT",
             # plan_cache: add summary_json column (שלב 1 structured JSON)
             "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS summary_json TEXT",
+            # plan_cache: OCR metadata columns
+            "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS ocr_confidence FLOAT",
+            "ALTER TABLE plan_cache ADD COLUMN IF NOT EXISTS extraction_method VARCHAR(20)",
         ]
         from sqlalchemy import text
         for sql in migrations:

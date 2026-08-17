@@ -7,7 +7,7 @@ and re-parse on every report generation. TTL is enforced by the service.
 
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import String, Text, DateTime, Integer
+from sqlalchemy import String, Text, DateTime, Integer, Float
 from sqlalchemy.orm import Mapped, mapped_column
 from ..db import Base
 
@@ -31,6 +31,12 @@ class PlanCache(Base):
 
     # Source URL that was fetched
     pdf_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+
+    # OCR metadata — populated when PDF was scanned (not digital text)
+    # ocr_confidence: 0-100 (Tesseract word-level confidence average), None if digital
+    ocr_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # extraction_method: "digital" | "ocr" | "none"
+    extraction_method: Mapped[Optional[str]] = mapped_column(String(20), nullable=True)
 
     # When cached
     cached_at: Mapped[datetime] = mapped_column(

@@ -4,6 +4,13 @@ FROM mcr.microsoft.com/playwright/python:v1.47.0-noble
 
 WORKDIR /app
 
+# Install Tesseract OCR + Hebrew tessdata + poppler (pdftoppm for scanned PDFs)
+RUN apt-get update && apt-get install -y \
+    tesseract-ocr \
+    tesseract-ocr-heb \
+    poppler-utils \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install deps
 COPY backend/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

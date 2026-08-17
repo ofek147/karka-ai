@@ -158,6 +158,9 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     plans_with_pdf: set = set()
     plans_no_pdf: set = set()
 
+    # missing_plans_info: תכניות שלא נחלצו — נעביר ל-Claude בשלב הסינתזה
+    missing_plans_info: list[dict] = []
+
     if db is not None:
         fetch_candidates = [
             p for p in plans_raw
@@ -184,15 +187,35 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             # בדוק cache pdf_text
             cached_row = await get_cached_plan(db, plan.pl_number, last_modified=last_modified)
             pdf_text = cached_row.pdf_text if cached_row else None
+            ocr_confidence: float | None = None
+            extraction_method: str | None = None
 
             if not pdf_text:
-                pdf_text = await fetch_plan_pdf_text_from_url(plan.pl_url)
+                # fetch_plan_pdf_text_from_url מחזיר tuple: (text, ocr_confidence, extraction_method)
+                pdf_text, ocr_confidence, extraction_method = await fetch_plan_pdf_text_from_url(plan.pl_url)
                 if pdf_text:
-                    await set_cached_plan_text(db, plan.pl_number, pdf_text, plan.pl_url)
+                    await set_cached_plan_text(
+                        db, plan.pl_number, pdf_text, plan.pl_url,
+                        ocr_confidence=ocr_confidence,
+                        extraction_method=extraction_method,
+                    )
 
             if not pdf_text:
+                # ── לא בולעים בשקט — רושמים למה נכשל ──────────────────────
+                plan_name = plan.pl_name or plan.mavat_name or plan.pl_number or ""
+                missing_info = {
+                    "plan_number": plan.pl_number,
+                    "plan_name": plan_name,
+                    "reason": "extraction_failed" if extraction_method == "none" else "no_pdf",
+                }
+                if ocr_confidence is not None:
+                    missing_info["ocr_confidence"] = round(ocr_confidence, 1)
+                missing_plans_info.append(missing_info)
                 plans_no_pdf.add(plan.pl_number)
-                print(f"[report_service] Plan {plan.pl_number}: no PDF, skipping")
+                print(
+                    f"[report_service] Plan {plan.pl_number} ({plan_name}): "
+                    f"no extractable text (method={extraction_method})"
+                )
                 continue
 
             try:
@@ -211,20 +234,36 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                 if parsed:
                     plan_summaries_json.append(parsed)
                     plans_with_pdf.add(plan.pl_number)
-                    print(f"[report_service] Plan {plan.pl_number}: summarized JSON ({len(raw_json_str)} chars)")
+                    print(
+                        f"[report_service] Plan {plan.pl_number}: summarized JSON "
+                        f"({len(raw_json_str)} chars, method={extraction_method or 'digital'})"
+                    )
                 else:
                     print(f"[report_service] Plan {plan.pl_number}: JSON parse failed, skipping")
+                    missing_plans_info.append({
+                        "plan_number": plan.pl_number,
+                        "plan_name": plan.pl_name or plan.mavat_name or "",
+                        "reason": "json_parse_failed",
+                    })
                     plans_no_pdf.add(plan.pl_number)
 
             except Exception as e:
                 plans_no_pdf.add(plan.pl_number)
+                missing_plans_info.append({
+                    "plan_number": plan.pl_number,
+                    "plan_name": plan.pl_name or plan.mavat_name or "",
+                    "reason": f"summarize_error: {type(e).__name__}",
+                })
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
     # ── 8. שלב 2: synthesize_plans → JSON מסונתז ─────────────────────────────
     synthesis: Optional[dict] = None
     if plan_summaries_json:
         try:
-            raw_synthesis = await synthesize_plans(plan_summaries_json)
+            raw_synthesis = await synthesize_plans(
+                plan_summaries_json,
+                missing_plans=missing_plans_info,
+            )
             synthesis = _parse_json_safe(raw_synthesis)
             if not synthesis:
                 print(f"[report_service] synthesis JSON parse failed, using first plan summary")

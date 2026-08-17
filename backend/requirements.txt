@@ -12,4 +12,6 @@ email-validator==2.2.0
 pyproj==3.7.2
 pymupdf==1.24.0
 playwright==1.47.0
+pytesseract==0.3.13
+Pillow==11.0.0
 

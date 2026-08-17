@@ -71,6 +71,8 @@ async def set_cached_plan_text(
     plan_number: str,
     pdf_text: str,
     pdf_url: Optional[str] = None,
+    ocr_confidence: Optional[float] = None,
+    extraction_method: Optional[str] = None,
 ) -> None:
     """Insert or replace cached PDF text. Preserves existing summary if present."""
     result = await db.execute(
@@ -79,13 +81,15 @@ async def set_cached_plan_text(
     existing = result.scalar_one_or_none()
 
     if existing:
-        # Update text + timestamp, keep summary
+        # Update text + timestamp + OCR metadata, keep summary
         await db.execute(
             update(PlanCache)
             .where(PlanCache.plan_number == plan_number)
             .values(
                 pdf_text=pdf_text,
                 pdf_url=pdf_url,
+                ocr_confidence=ocr_confidence,
+                extraction_method=extraction_method,
                 cached_at=datetime.datetime.utcnow(),
             )
         )
@@ -94,6 +98,8 @@ async def set_cached_plan_text(
             plan_number=plan_number,
             pdf_text=pdf_text,
             pdf_url=pdf_url,
+            ocr_confidence=ocr_confidence,
+            extraction_method=extraction_method,
             cached_at=datetime.datetime.utcnow(),
         ))
     await db.commit()

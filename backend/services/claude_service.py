@@ -153,14 +153,36 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
     return raw.strip()
 
 
-async def synthesize_plans(plan_summaries_json: list) -> str:
+async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None = None) -> str:
     """
     שלב 2: סינתזה מרובת תכניות → JSON מאוחד עם כללי עדיפות.
     plan_summaries_json: רשימת dict (תוצאות שלב 1 parsed).
+    missing_plans: תכניות שלא נחלצו (OCR נכשל / אין PDF) — מועברות ל-Claude להכרה.
     תוצאה משמשת לחישובי שכבה 3 ולדוח הסופי.
     """
     import json
     summaries_text = json.dumps(plan_summaries_json, ensure_ascii=False, indent=2)
+
+    # בניית בלוק אזהרה על תכניות חסרות — Claude יקבל הקשר מפורש
+    missing_block = ""
+    if missing_plans:
+        lines = []
+        for mp in missing_plans:
+            pnum = mp.get("plan_number", "")
+            pname = mp.get("plan_name", "")
+            reason = mp.get("reason", "לא ידוע")
+            conf = mp.get("ocr_confidence")
+            label = str(pnum) + (" (" + str(pname) + ")" if pname and pname != pnum else "")
+            detail = "סיבה: " + str(reason)
+            if conf is not None:
+                detail += ", OCR confidence: " + f"{conf:.0f}" + "%"
+            lines.append("  - " + label + " — " + detail)
+        missing_block = (
+            "\n\u26a0\ufe0f תכניות שלא נחלצו ולא נכללות בסינתזה:\n"
+            + "\n".join(lines)
+            + "\nחשוב: ציין ב-warnings שהניתוח עשוי להיות חלקי בגלל תכניות חסרות אלה.\n\n"
+        )
+
     prompt = (
         "אתה מומחה לתכנון ובנייה בישראל. קיבלת מספר סיכומי תכניות הרלוונטיות לחלקה ספציפית.\n"
         "המשימה: לסנתז את כל התכניות ל-JSON אחד מאוחד. החזר JSON בלבד.\n\n"
@@ -169,8 +191,9 @@ async def synthesize_plans(plan_summaries_json: list) -> str:
         "- תכנית ספציפית (מקומית) גוברת על תכנית ארצית\n"
         "- סתירה בין תכניות → ציין ב-conflicts\n"
         "- נתון שונה בין תכניות → קח את המחמיר (פחות יחידות / פחות קומות)\n\n"
-        f"סיכומי תכניות:\n{summaries_text}\n\n"
-        "JSON נדרש:\n"
+        + missing_block
+        + "סיכומי תכניות:\n" + summaries_text + "\n\n"
+        + "JSON נדרש:\n"
         "{\n"
         '  "primary_plan": "שם התכנית הדומיננטית",\n'
         '  "all_plans": ["שם1", "שם2"],\n'
@@ -191,7 +214,7 @@ async def synthesize_plans(plan_summaries_json: list) -> str:
         "כללים:\n"
         "- warnings/positives: עד 6 נקודות\n"
         "- conflicts: ריק אם אין סתירות\n"
-        "- has_detailed_plan: true רק אם קיימת תב\"ע מפורטת מאושרת\n"
+        '- has_detailed_plan: true רק אם קיימת תב"ע מפורטת מאושרת\n'
         "- החזר JSON בלבד — ללא טקסט נוסף"
     )
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
@@ -206,6 +229,7 @@ async def synthesize_plans(plan_summaries_json: list) -> str:
         if raw.endswith("```"):
             raw = raw.rsplit("```", 1)[0]
     return raw.strip()
+
 
 
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
