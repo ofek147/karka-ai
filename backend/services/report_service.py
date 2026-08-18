@@ -58,6 +58,15 @@ def _parse_json_safe(raw: str) -> Optional[dict]:
         return None
 
 
+def _migrate_gp(old_bool) -> Optional[str]:
+    """מיגרציי של cache ישן (grants_permits: bool) ל-scope string.
+    True → null (ambiguous), False → 'none'.
+    """
+    if old_bool is True:
+        return None
+    return "none"
+
+
 def _plan_internet_status(p) -> str:
     """Return authoritative plan status: internet_short_status > translated station_desc."""
     iss = (p.internet_short_status or "").strip()
@@ -152,7 +161,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     land_use_items: List[Dict] = []
     seen: set = set()
     for lu in land_use_raw:
-        yiud = lu.yiud or lu.yiud_heb or ""
+        yiud = lu.yiud or ""
         if yiud and yiud not in seen:
             seen.add(yiud)
             land_use_items.append({
@@ -290,13 +299,13 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             s["plan_stage"] = iplan_stage
         if pnum:
             s["plan_type"] = _derive_plan_type(pnum)
-        grants_permits = s.get("grants_permits")
+        gp_scope = s.get("grants_permits_scope") or (_migrate_gp(s.get("grants_permits")))
         pt = s.get("plan_type", "")
-        if grants_permits is True:
+        if gp_scope in ("general_building_rights", "narrow_purpose"):
             s["can_issue_permit"] = True
-        elif grants_permits is False:
+        elif gp_scope == "none":
             s["can_issue_permit"] = False
-        else:
+        else:  # null / ambiguous
             s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES_SET and pt == "מפורטת")
 
     # ── 9. בניית גרף דטרמיניסטי + synthesize_plans ──────────────────────────
@@ -591,7 +600,7 @@ def _report_data_to_text(data: ReportData) -> str:
         graph_lines.append("מצב תכנוני (גרף תכניות):")
         if graph.governing_plan:
             basis_labels = {
-                "grants_permits": "הצהרה מפורשת מה-PDF",
+                "grants_permits": "הצהרה מפורשת מה-PDF (זכויות בנייה כלליות)",
                 "explicit_1.6": "סעיף 1.6 ברור",
                 "approved_detailed_plan": "תכנית מפורטת מאושרת",
                 "statutory_default": "ברירת מחדל חוקית (סעיפים 129-131)",

@@ -64,8 +64,13 @@ class PlanNode:
     plan_name: str
     plan_stage: str           # מ-iplan (אמין יותר מ-PDF)
     plan_type: str            # ארצית/מחוזית/מתארית/מפורטת
-    grants_permits: Optional[bool]
+    grants_permits_scope: Optional[str]   # "general_building_rights" | "narrow_purpose" | "none" | null
     can_issue_permit: Optional[bool]
+
+    @property
+    def grants_permits(self) -> bool:
+        """Derived: True if scope is general or narrow (any kind of permit)."""
+        return self.grants_permits_scope in ("general_building_rights", "narrow_purpose")
     is_overlay: bool
     relations: List[dict]     # [{target, type, note}]
     relations_confidence: str  # "high" | "low"
@@ -87,6 +92,21 @@ class GraphResult:
     low_confidence_plans: List[str]        # תכניות שrelations שלהן confidence:low
 
     resolution_notes: List[str] = field(default_factory=list)  # הסברים לפתרון
+
+
+# ── migration helper ─────────────────────────────────────────────────────────
+
+def _migrate_grants_permits(s: dict) -> Optional[str]:
+    """
+    Backward-compat: cache ישן שומר grants_permits: bool (לפני schema חדש).
+    אם summary_json מכיל grants_permits=True (ישן) ואין grants_permits_scope —
+    נחשב כ-null (ambiguous) כי לא יודעים אם זה general או narrow.
+    re-extraction יפתור את זה.
+    """
+    old = s.get("grants_permits")
+    if old is True:
+        return None  # ambiguous — re-extraction needed
+    return "none"   # grants_permits=False → not granting any permit
 
 
 # ── בניית הגרף ───────────────────────────────────────────────────────────
@@ -114,7 +134,7 @@ def build_graph(plan_summaries: List[dict], iplan_status_map: dict) -> List[Plan
             plan_name=s.get("plan_name", pnum),
             plan_stage=stage,
             plan_type=s.get("plan_type", ""),
-            grants_permits=s.get("grants_permits"),
+            grants_permits_scope=s.get("grants_permits_scope") or _migrate_grants_permits(s),
             can_issue_permit=s.get("can_issue_permit"),
             is_overlay=bool(s.get("is_overlay", False)),
             relations=s.get("relations") or [],
@@ -164,13 +184,14 @@ def resolve_graph(nodes: List[PlanNode]) -> GraphResult:
     governing_basis = "none"
     governing_confidence = "none"
 
-    # עדיפות 1: grants_permits=true מתכנית מאושרת
-    gp_candidates = [n for n in approved if n.grants_permits is True]
+    # עדיפות 1: grants_permits_scope=="general_building_rights" מתכנית מאושרת
+    # narrow_purpose לא נכנסת לgoverning — מזכה בהיתר לנושא צר בלבד
+    gp_candidates = [n for n in approved if n.grants_permits_scope == "general_building_rights"]
     if gp_candidates:
         governing = max(gp_candidates, key=lambda n: _plan_rank(n))
         governing_basis = "grants_permits"
         governing_confidence = governing.relations_confidence
-        notes.append(f"governing_plan נקבע לפי grants_permits=true: {governing.plan_name}")
+        notes.append(f"governing_plan נקבע לפי grants_permits_scope=general_building_rights: {governing.plan_name}")
 
     # עדיפות 2: תכנית מפורטת מאושרת שלא כפופה לאחרת
     if not governing:

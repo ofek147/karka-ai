@@ -80,6 +80,7 @@ async def set_cached_plan_text(
     )
     existing = result.scalar_one_or_none()
 
+    now = datetime.datetime.utcnow()
     if existing:
         # Update text + timestamp + OCR metadata, keep summary
         await db.execute(
@@ -90,7 +91,7 @@ async def set_cached_plan_text(
                 pdf_url=pdf_url,
                 ocr_confidence=ocr_confidence,
                 extraction_method=extraction_method,
-                cached_at=datetime.datetime.utcnow(),
+                cached_at=now,
             )
         )
     else:
@@ -100,7 +101,7 @@ async def set_cached_plan_text(
             pdf_url=pdf_url,
             ocr_confidence=ocr_confidence,
             extraction_method=extraction_method,
-            cached_at=datetime.datetime.utcnow(),
+            cached_at=now,
         ))
     await db.commit()
 
