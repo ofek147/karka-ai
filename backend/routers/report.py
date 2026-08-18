@@ -75,7 +75,6 @@ async def request_report(req: ReportRequest, db: AsyncSession = Depends(get_db))
 @router.get("/report/status/{job_id}")
 async def report_status(job_id: int, db: AsyncSession = Depends(get_db)):
     """Check the status of a queued report job."""
-    from sqlalchemy import select
     result = await db.execute(select(ReportJob).where(ReportJob.id == job_id))
     job = result.scalar_one_or_none()
     if not job:

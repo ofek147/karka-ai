@@ -7,15 +7,9 @@ from ..clients.govmap_client import get_full_parcel_info
 from ..clients.iplan_client import get_plans_by_centroid
 from ..models.parcel import ParcelFullData
 from ..config import settings
+from ..utils.report_utils import reproject_3857_to_tm35
 
 
-def _to_tm35(x: float, y: float):
-    """Convert EPSG:3857 (Web Mercator) to EPSG:2039 (Israeli TM35)."""
-    try:
-        from pyproj import Transformer
-        return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True).transform(x, y)
-    except Exception:
-        return None, None
 
 
 async def get_parcel_data(gush: int, helka: int) -> ParcelFullData:
@@ -33,7 +27,10 @@ async def get_parcel_data(gush: int, helka: int) -> ParcelFullData:
     # Step 2: iplan — תכניות בניה (requires TM35 coords)
     plans = []
     if geometry.centroid_x and geometry.centroid_y:
-        tm35_x, tm35_y = _to_tm35(geometry.centroid_x, geometry.centroid_y)
+        try:
+            tm35_x, tm35_y = reproject_3857_to_tm35(geometry.centroid_x, geometry.centroid_y)
+        except Exception:
+            tm35_x, tm35_y = None, None
         if tm35_x and tm35_y:
             try:
                 plans = await get_plans_by_centroid(tm35_x, tm35_y)

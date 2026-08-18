@@ -9,10 +9,12 @@ Flow:
 5. real_estate — עסקאות + מחיר למ"ר (parallel עם iplan)
 6. mavat — PDF text per plan → cached in DB
 7. Claude שלב 1 — summarize_plan() per plan → JSON (cached in DB as summary_json)
-8. Claude שלב 2 — synthesize_plans() → JSON מסונתז
-9. Calculations שכבה 3 — חישובי שווי + חלק יחסי
-10. Claude final analysis — ניתוח Hebrew חופשי
-11. Return ReportData מובנה
+8. iplan_status_map + plan summaries override (stage/type/can_issue_permit)
+9. plan_graph_service — governing_plan + forward_plan (deterministic)
+10. synthesize_plans() → JSON מסונתז
+11. Calculations שכבה 3 — חישובי שווי + חלק יחסי
+12. Claude final analysis — ניתוח Hebrew חופשי
+13. Return ReportData מובנה
 """
 
 from __future__ import annotations
@@ -43,13 +45,9 @@ from ..services.calculations import compute_parcel_layer3
 from ..utils.report_utils import (
     _translate_status, _translate_yiud,
     _epoch_to_year, _classify_plan,
+    reproject_3857_to_tm35,
 )
 
-
-def _reproject(x: float, y: float) -> tuple:
-    """Convert EPSG:3857 → EPSG:2039 (TM35)."""
-    from pyproj import Transformer
-    return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True).transform(x, y)
 
 
 def _parse_json_safe(raw: str) -> Optional[dict]:
@@ -58,6 +56,14 @@ def _parse_json_safe(raw: str) -> Optional[dict]:
         return json.loads(raw)
     except Exception:
         return None
+
+
+def _plan_internet_status(p) -> str:
+    """Return authoritative plan status: internet_short_status > translated station_desc."""
+    iss = (p.internet_short_status or "").strip()
+    if iss:
+        return iss
+    return _translate_status(p.station_desc or "")
 
 
 # ── מבנה נתוני הדוח ──────────────────────────────────────────────────────────
@@ -122,7 +128,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     cx_tm35: Optional[float] = None
     cy_tm35: Optional[float] = None
     if centroid_x and centroid_y:
-        cx_tm35, cy_tm35 = _reproject(centroid_x, centroid_y)
+        cx_tm35, cy_tm35 = reproject_3857_to_tm35(centroid_x, centroid_y)
 
     # ── 3. iplan + real_estate — parallel ────────────────────────────────────
     plans_raw: List[Any] = []
@@ -259,13 +265,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
     # ── 8. iplan_status_map: authoritative stage per plan (needed by graph) ──────
-    def _plan_status_fn(p) -> str:
-        iss = (p.internet_short_status or "").strip()
-        if iss:
-            return iss
-        return _translate_status(p.station_desc or "")
-
-    iplan_status_map = {(p.pl_number or ""): _plan_status_fn(p) for p in plans_raw}
+    iplan_status_map = {(p.pl_number or ""): _plan_internet_status(p) for p in plans_raw}
 
     # override plan_stage + plan_type in summaries from authoritative sources
     APPROVED_STATUSES_SET = {"התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה"}
@@ -342,7 +342,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
 
     plans_list = "\n".join(
-        f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_status_fn(p)})"
+        f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_internet_status(p)})"
         for p in plans_raw[:8]
     )
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
@@ -569,9 +569,19 @@ def _report_data_to_text(data: ReportData) -> str:
         if can is True:
             return " [מפורטת — מזכה בהיתר]"
         if can is False and pt:
-            type_label = pt if pt else "מתארית/ארצית"
-            return f" [{type_label} — אינה מזכה בהיתר ישירות]"
+            return f" [{pt} — אינה מזכה בהיתר ישירות]"
         return ""
+
+    def _format_plan_line(p) -> str:
+        name = p.pl_name or p.mavat_name or p.pl_number or ""
+        status = _plan_internet_status(p)
+        year = _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None))
+        return (
+            f"  • {name}"
+            + (f" ({status})" if status else "")
+            + _plan_type_tag(p)
+            + (f" [{year}]" if year else "")
+        )
 
     # סעיף גרף התכניות — governing_plan + forward_plan + confidence
     graph = data.graph_result
@@ -611,13 +621,7 @@ def _report_data_to_text(data: ReportData) -> str:
         *graph_lines,
         "",
         "תכניות רלוונטיות:",
-        *[
-            f"  • {p.pl_name or p.mavat_name or p.pl_number}"
-            f"{' (' + ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) + ')' if ((p.internet_short_status or '').strip() or _translate_status(p.station_desc or '')) else ''}"
-            f"{_plan_type_tag(p)}"
-            f"{' [' + _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) + ']' if _epoch_to_year(p.pl_date_8 or getattr(p, 'pl_date7', None)) else ''}"
-            for p in data.plans_raw[:8]
-        ],
+        *[_format_plan_line(p) for p in data.plans_raw[:8]],
     ]
 
     # הערכה כלכלית — שכבה 3

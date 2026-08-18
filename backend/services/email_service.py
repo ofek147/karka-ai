@@ -72,7 +72,6 @@ async def send_magic_link(email: str, token: str) -> bool:
         return True
 
     try:
-        import httpx
         payload = {
             "from": "karkAi <noreply@karka-ai.co.il>",
             "to": [email],

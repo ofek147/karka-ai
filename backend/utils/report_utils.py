@@ -6,7 +6,13 @@ used by report_service.py and potentially other services.
 """
 
 import datetime
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+
+
+def reproject_3857_to_tm35(x: float, y: float) -> Tuple[float, float]:
+    """Convert EPSG:3857 (Web Mercator) → EPSG:2039 (Israeli TM35)."""
+    from pyproj import Transformer
+    return Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True).transform(x, y)
 
 
 # ---------------------------------------------------------------------------

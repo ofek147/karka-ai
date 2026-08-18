@@ -96,7 +96,6 @@ async def _update_lead_intelligence(
             current_parcels.append({"gush": gush, "helka": helka, "count": 1})
 
     # ── Score (idempotent signals) ────────────────────────────────────────────
-    current_signals = lead.parcels  # reuse parcels for parcel tracking
     score = lead.score
 
     # +10 first question ever
