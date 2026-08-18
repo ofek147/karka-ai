@@ -31,6 +31,7 @@ from ..clients.iplan_client import get_plans_by_centroid, get_land_use_by_centro
 from ..clients.mavat_client import fetch_plan_pdf_text_from_url
 from ..clients.real_estate_client import get_real_estate_stats
 from ..services.claude_service import _call_claude, summarize_plan, synthesize_plans
+from ..services.plan_graph_service import build_graph, resolve_graph, GraphResult
 from ..services.plan_cache_service import (
     get_cached_plan,
     set_cached_plan_text,
@@ -90,6 +91,7 @@ class ReportData:
 
     # sanity checks
     sanity_warnings: List[str] = field(default_factory=list)
+    graph_result: Optional[object] = field(default=None)  # GraphResult מ-plan_graph_service
 
     # מטה
     created_at: str = field(default_factory=lambda: datetime.datetime.now().strftime("%d/%m/%Y %H:%M"))
@@ -256,13 +258,23 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                 })
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
-    # ── 8. שלב 2: synthesize_plans → JSON מסונתז ─────────────────────────────
+    # ── 8. בניית גרף דטרמיניסטי + synthesize_plans ──────────────────────────
+    graph_result: Optional[GraphResult] = None
     synthesis: Optional[dict] = None
     if plan_summaries_json:
         try:
+            # 8a. גרף דטרמיניסטי — לפני Claude
+            nodes = build_graph(plan_summaries_json, iplan_status_map)
+            graph_result = resolve_graph(nodes)
+            print(f"[report_service] graph: governing={graph_result.governing_plan} "
+                  f"({graph_result.governing_basis}/{graph_result.governing_confidence}), "
+                  f"forward={graph_result.forward_plan}")
+
+            # 8b. Claude סינתזה עם גרף מוכן כ-input
             raw_synthesis = await synthesize_plans(
                 plan_summaries_json,
                 missing_plans=missing_plans_info,
+                graph_result=graph_result,
             )
             synthesis = _parse_json_safe(raw_synthesis)
             if not synthesis:
@@ -482,6 +494,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         plans_raw=plans_raw,
         plan_summaries_json=plan_summaries_json,
         synthesis=synthesis,
+        graph_result=graph_result,
         calculations=calculations,
         ai_analysis=ai_analysis,
         plans_with_pdf=plans_with_pdf,
@@ -563,6 +576,32 @@ def _report_data_to_text(data: ReportData) -> str:
             return f" [{type_label} — אינה מזכה בהיתר ישירות]"
         return ""
 
+    # סעיף גרף התכניות — governing_plan + forward_plan + confidence
+    graph = data.graph_result
+    graph_lines = []
+    if graph:
+        graph_lines.append("")
+        graph_lines.append("מצב תכנוני עף:")
+        if graph.governing_plan:
+            basis_labels = {
+                "grants_permits": "הצהרה מפורשת מה-PDF",
+                "explicit_1.6": "סעיף 1.6 ברור",
+                "statutory_default": "ברירת מחדל חוקית (סעיפים 129-131)",
+            }
+            basis = basis_labels.get(graph.governing_basis, graph.governing_basis)
+            if graph.governing_confidence == "low":
+                graph_lines.append(f"  • תכנית קובעת (כרגע): {graph.governing_plan}")
+                graph_lines.append(f"    [בסיס: {basis} — יחסי התכנית לא אומתו מסעיף 1.6, נא לבדוק]")
+            else:
+                graph_lines.append(f"  • תכנית קובעת (כרגע): {graph.governing_plan}")
+                graph_lines.append(f"    [בסיס: {basis}]")
+        else:
+            graph_lines.append("  • תכנית קובעת: אין תכנית מאושרת המזכה בזכויות בנייה ישירות")
+        if graph.forward_plan:
+            graph_lines.append(f"  • תכנית עתידית מתקדמת: {graph.forward_plan} ({graph.forward_stage})")
+        if graph.overlay_plans:
+            graph_lines.append(f"  • תכניות שכבתיות (שימור/תשתיות/שבילים): {', '.join(graph.overlay_plans)}")
+
     lines = [
         f"דוח תכנוני — גוש {data.gush}, חלקה {data.helka}",
         f"{'עיר: ' + data.city if data.city else ''}",
@@ -571,6 +610,7 @@ def _report_data_to_text(data: ReportData) -> str:
         "",
         "ייעוד קרקע:",
         *[f"  • {lu['yiud']}" for lu in data.land_use_items],
+        *graph_lines,
         "",
         "תכניות רלוונטיות:",
         *[

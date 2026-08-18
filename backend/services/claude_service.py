@@ -129,6 +129,11 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         '  "grants_permits": <true אם כתוב במפורש ''ניתן להוציא היתר'' או ''תוכנית שמכוחה ניתן להוציא היתרים'', false אחרת, null אם לא מוזכר>,\n'
         '  "contains_detailed_provisions": <true אם כתוב במפורש ''מכילה הוראות של תכנית מפורטת'', false אחרת, null אם לא מוזכר>,\n'
         '  "can_issue_permit": <true אם grants_permits=true, או plan_type=מפורטת ו-plan_stage=בתוקף>,\n'
+        '  "is_overlay": <true אם התכנית עוסקת אך ורק בשימור/דרכים/תשתיות/שבילים ואינה קובעת זכויות בנייה כלליות, false אחרת>,\n'
+        '  "relations": [\n'
+        '    {"target": "מספר תכנית", "type": "כפיפות|שינוי|החלפה|ביטול", "note": "הערה קצרה או null"}\n'
+        '  ],\n'
+        '  "relations_confidence": "high|low",\n'
         '  "warnings": ["אזהרה 1", "אזהרה 2"],\n'
         '  "positives": ["נקודה חיובית 1", "נקודה חיובית 2"]\n'
         "}\n\n"
@@ -137,6 +142,12 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         "- grants_permits: חלץ מהטקסט בלבד — אל תנחש לפי plan_type. תת\"ל/תמ\"ל יכולות להיות true.\n"
         "- contains_detailed_provisions: חלץ מהטקסט בלבד — אל תנחש.\n"
         "- can_issue_permit: true אם grants_permits=true, או plan_type=מפורטת ו-plan_stage=בתוקף\n"
+        "- is_overlay: true דוגמאות — תכנית שימור אתרים, תכנית שבילי אופניים, תכנית חישוב שטחים. false — תכניות שקובעות יחידות דיור/זכויות בנייה/ייעוד קרקע.\n"
+        "- relations: חלץ מסעיף 1.6 בטקסט שכותרתו 'יחס בין התכנית לבין תכניות מאושרות קודמות'.\n"
+        "  אם הסעיף לא קיים בטקסט — החזר relations: [].\n"
+        "  אל תחלץ מהקשרים אחרים (מידות פיזיות, 1.6 מטרים וכו').\n"
+        "  type: כפיפות=התכנית כפופה ל-target, שינוי=התכנית משנה חלק מ-target, החלפה=התכנית מחליפה את target, ביטול=התכנית מבטלת את target.\n"
+        "- relations_confidence: high אם סעיף 1.6 נמצא בטקסט בצורה ברורה (טבלה/פרוזה עם כותרת מפורשת). low אם לא נמצא סעיף 1.6 ברור.\n"
         "- warnings ו-positives: עד 5 נקודות כל אחד\n"
         "- ציר זמן: על בסיס שלב התכנית + תכניות דומות בישראל\n"
         "- רק מידע שמופיע בטקסט — אל תמציא\n"
@@ -145,7 +156,7 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
     response = await client.messages.create(
         model="claude-sonnet-4-5-20250929",
-        max_tokens=1000,
+        max_tokens=1500,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = response.content[0].text.strip()
@@ -157,17 +168,21 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
     return raw.strip()
 
 
-async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None = None) -> str:
+async def synthesize_plans(
+    plan_summaries_json: list,
+    missing_plans: list | None = None,
+    graph_result=None,
+) -> str:
     """
-    שלב 2: סינתזה מרובת תכניות → JSON מאוחד עם כללי עדיפות.
+    שלב 2: סינתזה מרובת תכניות → JSON מאוחד.
     plan_summaries_json: רשימת dict (תוצאות שלב 1 parsed).
-    missing_plans: תכניות שלא נחלצו (OCR נכשל / אין PDF) — מועברות ל-Claude להכרה.
-    תוצאה משמשת לחישובי שכבה 3 ולדוח הסופי.
+    missing_plans: תכניות שלא נחלצו — מועברות ל-Claude להכרה.
+    graph_result: GraphResult מ-plan_graph_service (governing_plan כבר פתור דטרמיניסטית).
     """
     import json
     summaries_text = json.dumps(plan_summaries_json, ensure_ascii=False, indent=2)
 
-    # בניית בלוק אזהרה על תכניות חסרות — Claude יקבל הקשר מפורש
+    # בלוק אזהרה על תכניות חסרות
     missing_block = ""
     if missing_plans:
         lines = []
@@ -182,26 +197,45 @@ async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None
                 detail += ", OCR confidence: " + f"{conf:.0f}" + "%"
             lines.append("  - " + label + " — " + detail)
         missing_block = (
-            "\n\u26a0\ufe0f תכניות שלא נחלצו ולא נכללות בסינתזה:\n"
+            "\n⚠️ תכניות שלא נחלצו ולא נכללות בסינתזה:\n"
             + "\n".join(lines)
-            + "\nחשוב: ציין ב-warnings שהניתוח עשוי להיות חלקי בגלל תכניות חסרות אלה.\n\n"
+            + "\nחשוב: ציין ב-warnings שהניתוח עשוי להיות חלקי.\n\n"
         )
 
+    # בלוק גרף מוכן — Claude מקבל governing_plan כעובדה, לא מנחש
+    graph_block = ""
+    if graph_result is not None:
+        glines = ["\nתוצאת גרף התכניות (דטרמיניסטי — אל תשנה):"]
+        gp = graph_result.governing_plan
+        fp = graph_result.forward_plan
+        basis_labels = {
+            "grants_permits": "הצהרה מפורשת מה-PDF",
+            "explicit_1.6": "סעיף 1.6 ברור",
+            "statutory_default": "ברירת מחדל חוקית (סעיפים 129-131)",
+            "none": "לא נמצאה",
+        }
+        basis_label = basis_labels.get(graph_result.governing_basis, graph_result.governing_basis)
+        if gp:
+            glines.append(f"- governing_plan: {gp} (בסיס: {basis_label}, confidence: {graph_result.governing_confidence})")
+        else:
+            glines.append("- governing_plan: אין תכנית מאושרת המזכה בזכויות בנייה ישירות")
+        if fp:
+            glines.append(f"- forward_plan: {fp} ({graph_result.forward_stage})")
+        if graph_result.overlay_plans:
+            glines.append(f"- overlays (לא משפיעות על זכויות): {', '.join(graph_result.overlay_plans)}")
+        if graph_result.low_confidence_plans:
+            glines.append(f"- תכניות עם יחסים לא ודאיים (ברירת מחדל היררכית): {', '.join(graph_result.low_confidence_plans)}")
+        graph_block = "\n".join(glines) + "\n\n"
+
     prompt = (
-        "אתה מומחה לתכנון ובנייה בישראל. קיבלת מספר סיכומי תכניות הרלוונטיות לחלקה ספציפית.\n"
+        "אתה מומחה לתכנון ובנייה בישראל. קיבלת סיכומי תכניות הרלוונטיות לחלקה ספציפית.\n"
         "המשימה: לסנתז את כל התכניות ל-JSON אחד מאוחד. החזר JSON בלבד.\n\n"
-        "כללי סינתזה:\n"
-        "- תכנית בתוקף גוברת על תכנית בהפקדה\n"
-        "- grants_permits=true גוברת — ללא קשר לסוג התכנית (תת\"ל/תמ\"ל ארציות יכולות לאפשר היתר ישירות)\n"
-        "- אל תניח ש\"ספציפית > ארצית\" — הסתמך על grants_permits ו-contains_detailed_provisions בלבד\n"
-        "- סתירה אמיתית (אין יחס ידוע בין התכניות) → ציין ב-conflicts\n"
-        "- יחס ידוע (A משנה את B, C מבטלת D) → אל תציין כ-conflict\n"
-        "- נתון שונה בין תכניות → קח את המחמיר (פחות יחידות / פחות קומות)\n\n"
+        + graph_block
         + missing_block
         + "סיכומי תכניות:\n" + summaries_text + "\n\n"
         + "JSON נדרש:\n"
         "{\n"
-        '  "primary_plan": "שם התכנית הדומיננטית",\n'
+        '  "primary_plan": "שם התכנית הדומיננטית (השתמש ב-governing_plan מהגרף אם סופק)",\n'
         '  "all_plans": ["שם1", "שם2"],\n'
         '  "plan_stage": "שלב משולב",\n'
         '  "total_units": <מספר יחידות אחרי סינתזה או null>,\n'
@@ -215,12 +249,12 @@ async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None
         '  "warnings": ["אזהרה 1"],\n'
         '  "positives": ["נקודה חיובית 1"],\n'
         '  "conflicts": ["סתירה בין תכניות אם קיימת"],\n'
-        '  "has_detailed_plan": <true אם יש לפחות תכנית מפורטת בתוקף, false אחרת>\n'
+        '  "has_detailed_plan": <true אם יש תכנית מפורטת בתוקף או grants_permits=true>\n'
         "}\n\n"
         "כללים:\n"
+        "- primary_plan: העדף את governing_plan מהגרף אם סופק\n"
+        "- conflicts: ריק אם יחסי התכניות ידועים מהגרף\n"
         "- warnings/positives: עד 6 נקודות\n"
-        "- conflicts: ריק אם אין סתירות\n"
-        '- has_detailed_plan: true אם קיימת תב"ע מפורטת מאושרת, או אם תכנית כלשהי grants_permits=true\n'
         "- החזר JSON בלבד — ללא טקסט נוסף"
     )
     client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key, timeout=90.0)
@@ -235,7 +269,6 @@ async def synthesize_plans(plan_summaries_json: list, missing_plans: list | None
         if raw.endswith("```"):
             raw = raw.rsplit("```", 1)[0]
     return raw.strip()
-
 
 
 async def _call_claude(messages: List[Dict[str, str]]) -> str:
