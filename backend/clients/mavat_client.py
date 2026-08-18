@@ -83,7 +83,6 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
         result = subprocess.run(
             ["pdftoppm", "-r", str(_PDF_DPI), "-png", pdf_path, prefix],
             capture_output=True,
-            timeout=120,
         )
         if result.returncode != 0:
             print(f"[mavat_client] pdftoppm failed: {result.stderr.decode()[:200]}")
@@ -149,9 +148,6 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
         )
         return (combined_text, avg_confidence)
 
-    except subprocess.TimeoutExpired:
-        print("[mavat_client] pdftoppm timed out")
-        return ("", 0.0)
     except Exception as e:
         print(f"[mavat_client] OCR pipeline error: {e}")
         return ("", 0.0)
