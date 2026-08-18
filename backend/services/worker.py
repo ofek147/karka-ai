@@ -21,6 +21,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.report_job import ReportJob
+import traceback
 from ..services.report_service import generate_report_text
 from ..services.email_service import send_report_ready
 
@@ -71,7 +72,6 @@ async def _process_one(db: AsyncSession, job: ReportJob, WorkerSession) -> None:
         logger.info(f"[worker] Job #{job.id} done — sent={sent}")
 
     except Exception as e:
-        import traceback
         tb = traceback.format_exc()
         logger.error(f"[worker] Job #{job.id} failed: {e}\n{tb}")
         await db.execute(

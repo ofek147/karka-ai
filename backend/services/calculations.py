@@ -151,7 +151,7 @@ def build_price_source_from_real_estate(re_stats) -> PriceSource:
                 price_per_sqm=price,
                 source="live",
                 note=f"ממוצע עסקאות {label.replace('_', ' ')} (govmap)",
-                deal_count=getattr(re_stats, f"neighborhood_deal_count", count),
+                deal_count=getattr(re_stats, "neighborhood_deal_count", count),
                 trend_pct=re_stats.trend_pct,
                 trend_direction=re_stats.trend_direction,
             )

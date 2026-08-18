@@ -1,3 +1,4 @@
+import json
 import re
 import ssl
 import httpx
@@ -72,8 +73,7 @@ async def get_plans_by_centroid(
     """
     esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
     if esri_poly:
-        import json as _json
-        geometry_param = _json.dumps(esri_poly)
+        geometry_param = json.dumps(esri_poly)
         geometry_type  = "esriGeometryPolygon"
         in_sr          = "2039"
         print(f"[iplan_client] Layer1 query by parcel polygon ({len(esri_poly['rings'][0])} vertices)")
@@ -142,8 +142,7 @@ async def get_land_use_by_centroid(
     """
     esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
     if esri_poly:
-        import json as _json
-        geometry_param = _json.dumps(esri_poly)
+        geometry_param = json.dumps(esri_poly)
         geometry_type  = "esriGeometryPolygon"
         in_sr          = "2039"
         print(f"[iplan_client] Layer4 query by parcel polygon")

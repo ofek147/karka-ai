@@ -324,7 +324,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         except Exception as e:
             print(f"[report_service] synthesize_plans error: {e}")
 
-    # ── 9. שכבה 3: חישובים ───────────────────────────────────────────────────
+    # ── 10. שכבה 3: חישובים ───────────────────────────────────────────────────
     calculations: Optional[dict] = None
     if synthesis:
         try:
@@ -338,7 +338,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         except Exception as e:
             print(f"[report_service] calculations error: {e}")
 
-    # ── 10. Claude final analysis ─────────────────────────────────────────────
+    # ── 11. Claude final analysis ─────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
 
     plans_list = "\n".join(
