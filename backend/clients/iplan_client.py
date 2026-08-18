@@ -1,6 +1,7 @@
+import re
 import ssl
 import httpx
-from typing import List
+from typing import List, Optional
 from ..models.parcel import PlanInfo, LandUseInfo
 
 # iplan.gov.il uses an older TLS config that Python 3.12+ OpenSSL 3.x rejects
@@ -16,7 +17,31 @@ _IPLAN_SSL = _iplan_ssl()
 
 LAYER_1_URL = "https://ags.iplan.gov.il/arcgisiplan/rest/services/PlanningPublic/Xplan/MapServer/1/query"
 LAYER_4_URL = "https://ags.iplan.gov.il/arcgisiplan/rest/services/PlanningPublic/Xplan/MapServer/4/query"
-BBOX_BUFFER = 100  # meters (TM35 units)
+BBOX_BUFFER = 100  # meters (TM35 units) — fallback when no WKT available
+
+
+def _wkt_to_esri_rings(wkt: str) -> Optional[dict]:
+    """
+    Convert a WKT MULTIPOLYGON Z (EPSG:3857) → ArcGIS esriGeometryPolygon (EPSG:2039).
+    Returns None if conversion fails (caller falls back to bbox).
+    """
+    try:
+        from pyproj import Transformer
+        t = Transformer.from_crs("EPSG:3857", "EPSG:2039", always_xy=True)
+        # strip Z values and collect all rings
+        nums_flat = list(map(float, re.findall(r'[-\d.]+', wkt)))
+        # WKT coords are x y z triplets; strip Z → pairs
+        coords = [(nums_flat[i], nums_flat[i+1]) for i in range(0, len(nums_flat), 3)]
+        if not coords:
+            return None
+        projected = [list(t.transform(x, y)) for x, y in coords]
+        return {
+            "rings": [projected],
+            "spatialReference": {"wkid": 2039},
+        }
+    except Exception as e:
+        print(f"[iplan_client] WKT→rings failed: {e}")
+        return None
 
 LAYER_1_FIELDS = ",".join([
     "pl_name", "pl_number",
@@ -35,14 +60,33 @@ LAYER_1_FIELDS = ",".join([
 LAYER_4_FIELDS = "mavat_name,mavat_code,pl_name,pl_number,station_desc,station,legal_area,shape_area"
 
 
-async def get_plans_by_centroid(cx: float, cy: float) -> List[PlanInfo]:
-    """Layer 1 — תכניות בניה מקוונות עם מלוא המטאדטה."""
-    bbox = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
+async def get_plans_by_centroid(
+    cx: float,
+    cy: float,
+    shape_wkt: Optional[str] = None,
+) -> List[PlanInfo]:
+    """
+    Layer 1 — תכניות בניה מקוונות עם מלוא המטאדטה.
+    If shape_wkt (MULTIPOLYGON Z, EPSG:3857) is provided, queries by the full
+    parcel polygon instead of a centroid bbox — catches plans on parcel edges.
+    """
+    esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
+    if esri_poly:
+        import json as _json
+        geometry_param = _json.dumps(esri_poly)
+        geometry_type  = "esriGeometryPolygon"
+        in_sr          = "2039"
+        print(f"[iplan_client] Layer1 query by parcel polygon ({len(esri_poly['rings'][0])} vertices)")
+    else:
+        geometry_param = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
+        geometry_type  = "esriGeometryEnvelope"
+        in_sr          = "2039"
+        print(f"[iplan_client] Layer1 query by bbox (buffer={BBOX_BUFFER}m) — no WKT")
     params = {
         "f": "json",
-        "geometry": bbox,
-        "geometryType": "esriGeometryEnvelope",
-        "inSR": "2039",
+        "geometry": geometry_param,
+        "geometryType": geometry_type,
+        "inSR": in_sr,
         "spatialRel": "esriSpatialRelIntersects",
         "outFields": LAYER_1_FIELDS,
         "returnGeometry": False,
@@ -87,14 +131,32 @@ async def get_plans_by_centroid(cx: float, cy: float) -> List[PlanInfo]:
 get_plans_layer1 = get_plans_by_centroid
 
 
-async def get_land_use_by_centroid(cx: float, cy: float) -> List[LandUseInfo]:
-    """Layer 4 — ייעודי קרקע לפי תא שטח."""
-    bbox = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
+async def get_land_use_by_centroid(
+    cx: float,
+    cy: float,
+    shape_wkt: Optional[str] = None,
+) -> List[LandUseInfo]:
+    """
+    Layer 4 — ייעודי קרקע לפי תא שטח.
+    If shape_wkt is provided, queries by full parcel polygon.
+    """
+    esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
+    if esri_poly:
+        import json as _json
+        geometry_param = _json.dumps(esri_poly)
+        geometry_type  = "esriGeometryPolygon"
+        in_sr          = "2039"
+        print(f"[iplan_client] Layer4 query by parcel polygon")
+    else:
+        geometry_param = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
+        geometry_type  = "esriGeometryEnvelope"
+        in_sr          = "2039"
+        print(f"[iplan_client] Layer4 query by bbox — no WKT")
     params = {
         "f": "json",
-        "geometry": bbox,
-        "geometryType": "esriGeometryEnvelope",
-        "inSR": "2039",
+        "geometry": geometry_param,
+        "geometryType": geometry_type,
+        "inSR": in_sr,
         "spatialRel": "esriSpatialRelIntersects",
         "outFields": LAYER_4_FIELDS,
         "returnGeometry": False,

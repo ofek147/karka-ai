@@ -129,8 +129,8 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
 
     if cx_tm35 and cy_tm35:
         plans_raw, land_use_raw, re_stats = await asyncio.gather(
-            _safe(get_plans_by_centroid(cx_tm35, cy_tm35), [], "plans"),
-            _safe(get_land_use_by_centroid(cx_tm35, cy_tm35), [], "land_use"),
+            _safe(get_plans_by_centroid(cx_tm35, cy_tm35, shape_wkt=parcel.shape_wkt), [], "plans"),
+            _safe(get_land_use_by_centroid(cx_tm35, cy_tm35, shape_wkt=parcel.shape_wkt), [], "land_use"),
             _safe(get_real_estate_stats(gush, helka), None, "real_estate"),
         )
 
