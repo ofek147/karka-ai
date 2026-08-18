@@ -3,7 +3,6 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { verifyMagicToken } from "@/lib/api";
 import { saveUser } from "@/lib/auth";
-import KarkaIcon from "@/components/KarkaIcon";
 import KarkaLogo from "@/components/KarkaLogo";
 
 function VerifyInner() {

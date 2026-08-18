@@ -19,6 +19,7 @@ The report is generated asynchronously by the background worker and sent via ema
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, field_validator, EmailStr
 from typing import Optional
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..db import get_db

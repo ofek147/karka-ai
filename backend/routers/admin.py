@@ -139,7 +139,8 @@ async def request_admin_link(req: MagicRequest, request: Request):
 
     email = req.email.strip().lower()
     if email != settings.admin_email.lower():
-        await _send_alert(email, _get_ip(request), await _geolocate(_get_ip(request)))
+        ip = _get_ip(request)
+        await _send_alert(email, ip, await _geolocate(ip))
         return {"ok": True}
 
     token = _sign({"type": "link", "jti": secrets.token_hex(8), "exp": time.time() + LINK_TTL})

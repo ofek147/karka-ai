@@ -74,7 +74,7 @@ export function useChat(options: UseChatOptions = {}) {
         setLoading(false);
       }
     };
-    tryChat(1);
+    void tryChat(1);
   }, [input, loading, messages, sessionId, user, refreshSessions, setShowRegister]);
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {

@@ -71,16 +71,15 @@ async def get_plans_by_centroid(
     If shape_wkt (MULTIPOLYGON Z, EPSG:3857) is provided, queries by the full
     parcel polygon instead of a centroid bbox — catches plans on parcel edges.
     """
-    esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
+    in_sr      = "2039"
+    esri_poly  = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
     if esri_poly:
         geometry_param = json.dumps(esri_poly)
         geometry_type  = "esriGeometryPolygon"
-        in_sr          = "2039"
         print(f"[iplan_client] Layer1 query by parcel polygon ({len(esri_poly['rings'][0])} vertices)")
     else:
         geometry_param = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
         geometry_type  = "esriGeometryEnvelope"
-        in_sr          = "2039"
         print(f"[iplan_client] Layer1 query by bbox (buffer={BBOX_BUFFER}m) — no WKT")
     params = {
         "f": "json",
@@ -140,16 +139,15 @@ async def get_land_use_by_centroid(
     Layer 4 — ייעודי קרקע לפי תא שטח.
     If shape_wkt is provided, queries by full parcel polygon.
     """
-    esri_poly = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
+    in_sr      = "2039"
+    esri_poly  = _wkt_to_esri_rings(shape_wkt) if shape_wkt else None
     if esri_poly:
         geometry_param = json.dumps(esri_poly)
         geometry_type  = "esriGeometryPolygon"
-        in_sr          = "2039"
         print(f"[iplan_client] Layer4 query by parcel polygon")
     else:
         geometry_param = f"{cx-BBOX_BUFFER},{cy-BBOX_BUFFER},{cx+BBOX_BUFFER},{cy+BBOX_BUFFER}"
         geometry_type  = "esriGeometryEnvelope"
-        in_sr          = "2039"
         print(f"[iplan_client] Layer4 query by bbox — no WKT")
     params = {
         "f": "json",
@@ -172,7 +170,6 @@ async def get_land_use_by_centroid(
         area_dunam = round(legal_area_sqm / 1000, 3) if legal_area_sqm else None
         results.append(LandUseInfo(
             yiud=attrs.get("mavat_name"),
-            yiud_heb=attrs.get("mavat_name"),
             area_dunam=area_dunam,
             plan_name=attrs.get("pl_name"),
             plan_num=attrs.get("pl_number"),

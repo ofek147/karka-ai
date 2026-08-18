@@ -90,14 +90,14 @@ async def verify_otp(req: OtpVerify):
         if not otp:
             raise HTTPException(status_code=400, detail="קוד שגוי או פג תוקף")
 
-        otp.used = True
-        await db.commit()
-
-        # Find lead
+        # Find lead first — before burning the OTP
         lead_result = await db.execute(select(Lead).where(Lead.phone.contains(phone[-9:])))
         lead = lead_result.scalars().first()
         if not lead:
             raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+
+        otp.used = True
+        await db.commit()
 
         return {"user": {"id": str(lead.id), "name": lead.name, "phone": lead.phone, "email": lead.email}}
 
@@ -148,12 +148,13 @@ async def verify_magic(token: str):
         if not otp:
             raise HTTPException(status_code=400, detail="קישור לא תקין או פג תוקף")
 
-        otp.used = True
-        await db.commit()
-
+        # Find lead first — before burning the OTP
         lead_result = await db.execute(select(Lead).where(Lead.email == otp.identifier))
         lead = lead_result.scalars().first()
         if not lead:
             raise HTTPException(status_code=404, detail="משתמש לא נמצא")
+
+        otp.used = True
+        await db.commit()
 
         return {"user": {"id": str(lead.id), "name": lead.name, "phone": lead.phone, "email": lead.email}}

@@ -37,7 +37,6 @@ class PlanInfo(BaseModel):
 
 class LandUseInfo(BaseModel):
     yiud: Optional[str] = None         # mavat_name — zone type
-    yiud_heb: Optional[str] = None     # mavat_name (same, for compat)
     area_dunam: Optional[float] = None
     plan_name: Optional[str] = None
     plan_num: Optional[str] = None
