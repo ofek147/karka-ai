@@ -322,7 +322,15 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             s["plan_type"] = _derive_plan_type(pnum)
         # can_issue_permit — מ-iplan בלבד
         pt = s.get("plan_type", "")
-        s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES and pt == "מפורטת")
+        # grants_permits מ-Claude שלב 1 גובר — אם Claude קבע שהתכנית מזכה בהיתר, נכבד זאת
+        grants_permits = s.get("grants_permits")
+        if grants_permits is True:
+            s["can_issue_permit"] = True
+        elif grants_permits is False:
+            s["can_issue_permit"] = False
+        else:
+            # fallback: לוגיקת iplan_stage + plan_type (כשאין grants_permits מהחילוץ)
+            s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES and pt == "מפורטת")
 
     plans_list = "\n".join(
         f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_status(p)})"
@@ -402,6 +410,9 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                 "ייתכנו אי-דיוקים בחלוקת השטחים. מומלץ לאמת מול תצר."
             )
             print(f"[sanity] חריגה כלפי מעלה: coverage={coverage:.2f} | plot={plot_dunam}d | layer4={total_layer4_dunam}d")
+            # ── BLOCKER: פסול את yiud_breakdown — לא לשלוח לClaude מספרים לא אמינים ──
+            residential_sqm = 0.0
+            non_residential_sqm = 0.0
         elif coverage < 0.90 and total_layer4_dunam > 0:
             sanity_warnings.append(
                 "⚠️ לא כל שטח החלקה מכוסה בנתוני ייעוד זמינים מ-iplan. "
