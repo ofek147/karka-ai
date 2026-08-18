@@ -34,7 +34,7 @@ _PLAN_TYPE_RANK = {
 
 # סטטוסים שנחשבים "מאושרים" (מ-iplan internet_short_status)
 _APPROVED_STATUSES = {
-    "התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה", "בתוקף",
+    "התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה",
 }
 
 # סטטוסים "בדרך לאישור" (forward_plan candidates)
@@ -177,8 +177,9 @@ def resolve_graph(nodes: List[PlanNode]) -> GraphResult:
         detailed = [n for n in approved if n.plan_type == "מפורטת"]
         not_superseded = [n for n in detailed if not _is_superseded(n, approved)]
         if not_superseded:
-            governing = max(not_superseded, key=lambda n: _plan_rank(n))
-            governing_basis = "explicit_1.6" if governing.relations_confidence == "high" else "statutory_default"
+            # אם יש כמה תכניות מפורטות — בחר את האחרונה בזמן (pl_date גבוה יותר)
+            governing = not_superseded[-1]  # לאחרונה ברשימה (sorted by date in iplan)
+            governing_basis = "approved_detailed_plan"
             governing_confidence = governing.relations_confidence
             notes.append(f"governing_plan: תכנית מפורטת מאושרת {governing.plan_name}")
 
@@ -221,7 +222,11 @@ def resolve_graph(nodes: List[PlanNode]) -> GraphResult:
 
 def _is_approved(stage: str) -> bool:
     s = (stage or "").strip()
-    return any(a in s for a in _APPROVED_STATUSES)
+    # exact match first, then substring (avoid 'לא בתוקף' matching 'בתוקף')
+    if s in _APPROVED_STATUSES:
+        return True
+    # substring only for multi-word statuses that are always unambiguous
+    return any(a in s for a in ("התכנית אושרה", "פרסום אישור"))
 
 
 def _is_in_progress(stage: str) -> bool:

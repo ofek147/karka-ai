@@ -211,6 +211,7 @@ async def synthesize_plans(
         basis_labels = {
             "grants_permits": "הצהרה מפורשת מה-PDF",
             "explicit_1.6": "סעיף 1.6 ברור",
+            "approved_detailed_plan": "תכנית מפורטת מאושרת",
             "statutory_default": "ברירת מחדל חוקית (סעיפים 129-131)",
             "none": "לא נמצאה",
         }

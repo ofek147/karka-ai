@@ -258,7 +258,48 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                 })
                 print(f"[report_service] Plan {plan.pl_number}: summarize error: {e}")
 
-    # ── 8. בניית גרף דטרמיניסטי + synthesize_plans ──────────────────────────
+    # ── 8. iplan_status_map: authoritative stage per plan (needed by graph) ──────
+    def _plan_status_fn(p) -> str:
+        iss = (p.internet_short_status or "").strip()
+        if iss:
+            return iss
+        return _translate_status(p.station_desc or "")
+
+    iplan_status_map = {(p.pl_number or ""): _plan_status_fn(p) for p in plans_raw}
+
+    # override plan_stage + plan_type in summaries from authoritative sources
+    APPROVED_STATUSES_SET = {"התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה"}
+
+    def _derive_plan_type(n: str) -> str:
+        n = (n or "").strip()
+        if any(n.startswith(p) for p in ('תמ"א', "תתל", "תמל", 'תמ/א')):
+            return "ארצית"
+        if n.startswith("תמח"):
+            return "מחוזית"
+        if n.startswith("תמ"):
+            return "מתארית"
+        return "מפורטת"
+
+    for s in plan_summaries_json:
+        pnum = s.get("plan_number", "")
+        iplan_stage = iplan_status_map.get(pnum, "")
+        cached_stage = s.get("plan_stage", "")
+        if cached_stage and iplan_stage and cached_stage != iplan_stage:
+            print(f"[conflict-log] plan={pnum} | cache=\'{cached_stage}\' | iplan=\'{iplan_stage}\' → using iplan")
+        if iplan_stage:
+            s["plan_stage"] = iplan_stage
+        if pnum:
+            s["plan_type"] = _derive_plan_type(pnum)
+        grants_permits = s.get("grants_permits")
+        pt = s.get("plan_type", "")
+        if grants_permits is True:
+            s["can_issue_permit"] = True
+        elif grants_permits is False:
+            s["can_issue_permit"] = False
+        else:
+            s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES_SET and pt == "מפורטת")
+
+    # ── 9. בניית גרף דטרמיניסטי + synthesize_plans ──────────────────────────
     graph_result: Optional[GraphResult] = None
     synthesis: Optional[dict] = None
     if plan_summaries_json:
@@ -299,53 +340,9 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
 
     # ── 10. Claude final analysis ─────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
-    def _plan_status(p) -> str:
-        """internet_short_status הוא האמין — station_desc מחזיר 'אחר' כברירת מחדל בiplan."""
-        iss = (p.internet_short_status or "").strip()
-        if iss:
-            return iss
-        return _translate_status(p.station_desc or "")
-
-    # ── iplan_status_map: authoritative status per plan_number ──────────────
-    iplan_status_map = {(p.pl_number or ""): _plan_status(p) for p in plans_raw}
-
-    # conflict log: cache plan_stage vs iplan real-time status
-    APPROVED_STATUSES = {"התכנית אושרה", "פרסום אישור", "בתוקף", "אושרה"}
-    for s in plan_summaries_json:
-        pnum = s.get("plan_number", "")
-        cached_stage = s.get("plan_stage", "")
-        iplan_stage = iplan_status_map.get(pnum, "")
-        if cached_stage and iplan_stage and cached_stage != iplan_stage:
-            print(f"[conflict-log] plan={pnum} | cache='{cached_stage}' | iplan='{iplan_stage}' → using iplan")
-        # override plan_stage מ-iplan
-        if iplan_stage:
-            s["plan_stage"] = iplan_stage
-        # plan_type — נגזר מ-plan_number בקוד, לא Claude
-        def _derive_plan_type(n: str) -> str:
-            n = (n or "").strip()
-            if any(n.startswith(p) for p in ("תמ\"א", "תתל", "תמל", "תמ/א")):
-                return "ארצית"
-            if n.startswith("תמח"):
-                return "מחוזית"
-            if n.startswith("תמ"):
-                return "מתארית"
-            return "מפורטת"
-        if pnum:
-            s["plan_type"] = _derive_plan_type(pnum)
-        # can_issue_permit — מ-iplan בלבד
-        pt = s.get("plan_type", "")
-        # grants_permits מ-Claude שלב 1 גובר — אם Claude קבע שהתכנית מזכה בהיתר, נכבד זאת
-        grants_permits = s.get("grants_permits")
-        if grants_permits is True:
-            s["can_issue_permit"] = True
-        elif grants_permits is False:
-            s["can_issue_permit"] = False
-        else:
-            # fallback: לוגיקת iplan_stage + plan_type (כשאין grants_permits מהחילוץ)
-            s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES and pt == "מפורטת")
 
     plans_list = "\n".join(
-        f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_status(p)})"
+        f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_status_fn(p)})"
         for p in plans_raw[:8]
     )
     area_line = f"{area_sqm:.0f} מ\"ר ({area_dunam} דונם)" if area_sqm else "לא ידוע"
@@ -581,11 +578,12 @@ def _report_data_to_text(data: ReportData) -> str:
     graph_lines = []
     if graph:
         graph_lines.append("")
-        graph_lines.append("מצב תכנוני עף:")
+        graph_lines.append("מצב תכנוני (גרף תכניות):")
         if graph.governing_plan:
             basis_labels = {
                 "grants_permits": "הצהרה מפורשת מה-PDF",
                 "explicit_1.6": "סעיף 1.6 ברור",
+                "approved_detailed_plan": "תכנית מפורטת מאושרת",
                 "statutory_default": "ברירת מחדל חוקית (סעיפים 129-131)",
             }
             basis = basis_labels.get(graph.governing_basis, graph.governing_basis)
