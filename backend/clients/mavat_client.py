@@ -81,7 +81,7 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float, bool]:
         from PIL import Image
     except ImportError:
         print("[mavat_client] pytesseract/Pillow not installed — OCR unavailable")
-        return ("", 0.0)
+        return ("", 0.0, False)
 
     tmp_dir = tempfile.mkdtemp(prefix="karka_ocr_")
     try:
