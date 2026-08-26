@@ -45,6 +45,9 @@ class ReportRequest(BaseModel):
     def model_post_init(self, __context) -> None:
         if not self.email and not self.phone:
             raise ValueError("נדרש לפחות מייל או טלפון")
+        # SMS not yet implemented — require email until Twilio/Vonage is integrated
+        if not self.email:
+            raise ValueError("שליחת SMS אינה פעילה עדיין. אנא ספק כתובת אימייל לקבלת הדוח.")
 
 
 @router.post("/report/request")
@@ -80,9 +83,18 @@ async def report_status(job_id: int, db: AsyncSession = Depends(get_db)):
     job = result.scalar_one_or_none()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
+    # Human-readable status for frontend/API consumers
+    STATUS_MESSAGES = {
+        "pending":          "בתור לעיבוד",
+        "processing":       "ביצור הדוח...",
+        "done":             "הדוח הופק ונשלח בהצלחה",
+        "done_no_delivery": "הדוח הופק אך לא נשלח (אין כתובת אימייל ו-SMS אינו פעיל עדיין)",
+        "failed":           "שגיאה ביצירת הדוח",
+    }
     return {
         "job_id": job.id,
         "status": job.status,
+        "status_message": STATUS_MESSAGES.get(job.status, job.status),
         "gush": job.gush,
         "helka": job.helka,
         "created_at": job.created_at.isoformat() if job.created_at else None,
