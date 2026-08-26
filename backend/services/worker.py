@@ -62,14 +62,32 @@ async def _process_one(db: AsyncSession, job: ReportJob, WorkerSession) -> None:
             )
 
         # TODO: SMS via Twilio/Vonage when phone-only (job.phone and not job.email)
+        # Until SMS is implemented, phone-only jobs are marked "done_no_delivery"
+        # so the report is generated but we have visibility that it never reached the user.
+        if not sent and not job.email:
+            final_status = "done_no_delivery"
+            final_error = "phone-only delivery not yet implemented (SMS pending)"
+            logger.warning(f"[worker] Job #{job.id} — report generated but NOT delivered (phone-only, no email)")
+        elif not sent:
+            # email was set but send failed — treat as failed
+            final_status = "failed"
+            final_error = "email delivery failed"
+            logger.error(f"[worker] Job #{job.id} — email delivery failed")
+        else:
+            final_status = "done"
+            final_error = None
 
         await db.execute(
             update(ReportJob)
             .where(ReportJob.id == job.id)
-            .values(status="done", completed_at=datetime.now(timezone.utc))
+            .values(
+                status=final_status,
+                completed_at=datetime.now(timezone.utc),
+                error_msg=final_error,
+            )
         )
         await db.commit()
-        logger.info(f"[worker] Job #{job.id} done — sent={sent}")
+        logger.info(f"[worker] Job #{job.id} {final_status} — sent={sent}")
 
     except Exception as e:
         tb = traceback.format_exc()
@@ -87,7 +105,16 @@ async def _process_one(db: AsyncSession, job: ReportJob, WorkerSession) -> None:
 
 
 async def _reset_stuck_jobs(db: AsyncSession) -> None:
-    """Reset jobs stuck in `processing` for too long (e.g. server crash mid-job)."""
+    """
+    Reset jobs stuck in `processing` for too long (e.g. server crash mid-job).
+
+    ASSUMPTION: single Railway replica only.
+    TODO(multi-replica): if Railway runs >1 replica, two instances can both
+    pick up the same job — instance B resets a job that instance A is still
+    actively processing → duplicate emails + double DB writes.
+    Fix: replace status filter with SELECT ... FOR UPDATE SKIP LOCKED.
+    Until then, ensure Railway service is configured with replicas=1.
+    """
     cutoff = datetime.now(timezone.utc) - timedelta(seconds=STUCK_TIMEOUT)
     result = await db.execute(
         update(ReportJob)
