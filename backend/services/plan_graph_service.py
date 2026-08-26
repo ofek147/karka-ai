@@ -71,7 +71,7 @@ class PlanNode:
     def grants_permits(self) -> bool:
         """Derived: True if scope is general or narrow (any kind of permit)."""
         return self.grants_permits_scope in ("general_building_rights", "narrow_purpose")
-    is_overlay: bool
+    is_overlay: Optional[bool]  # None = ambiguous (old cache) → treated as overlay (safer)
     relations: List[dict]     # [{target, type, note}]
     relations_confidence: str  # "high" | "low"
 
@@ -95,6 +95,18 @@ class GraphResult:
 
 
 # ── migration helper ─────────────────────────────────────────────────────────
+
+def _migrate_is_overlay(s: dict) -> Optional[bool]:
+    """
+    Backward-compat: cache ישן שאין בו is_overlay (שדה חדש).
+    מחזיר None (ambiguous) — לא False — כדי שתכניות לא ידועות
+    לא יוכנסו ל-rights_nodes בברירת מחדל.
+    build_graph מטפל ב-None ע"י הדרה (safer to exclude than to include).
+    """
+    if "is_overlay" in s:
+        return bool(s["is_overlay"])
+    return None  # ambiguous — נדרש re-extraction
+
 
 def _migrate_grants_permits(s: dict) -> Optional[str]:
     """
@@ -136,7 +148,7 @@ def build_graph(plan_summaries: List[dict], iplan_status_map: dict) -> List[Plan
             plan_type=s.get("plan_type", ""),
             grants_permits_scope=s.get("grants_permits_scope") or _migrate_grants_permits(s),
             can_issue_permit=s.get("can_issue_permit"),
-            is_overlay=bool(s.get("is_overlay", False)),
+            is_overlay=_migrate_is_overlay(s),  # None = ambiguous → treated as overlay (safer)
             relations=s.get("relations") or [],
             relations_confidence=s.get("relations_confidence", "low"),
         ))
@@ -158,11 +170,12 @@ def resolve_graph(nodes: List[PlanNode]) -> GraphResult:
     4. forward_plan = המתקדמת ביותר שטרם אושרה
     """
     notes = []
-    overlay_plans = [n.plan_name for n in nodes if n.is_overlay]
-    low_conf = [n.plan_name for n in nodes if n.relations_confidence == "low" and not n.is_overlay]
+    # is_overlay=None (ambiguous/old cache) → treated as overlay (safer to exclude)
+    overlay_plans = [n.plan_name for n in nodes if n.is_overlay is not False]
+    low_conf = [n.plan_name for n in nodes if n.relations_confidence == "low" and n.is_overlay is False]
 
-    # תכניות שמשתתפות בגרף הזכויות
-    rights_nodes = [n for n in nodes if not n.is_overlay]
+    # תכניות שמשתתפות בגרף הזכויות — רק תכניות שידוע בודאי שהן לא overlay
+    rights_nodes = [n for n in nodes if n.is_overlay is False]
 
     # מי בוטל?
     cancelled = _find_cancelled(rights_nodes)
@@ -194,8 +207,13 @@ def resolve_graph(nodes: List[PlanNode]) -> GraphResult:
         notes.append(f"governing_plan נקבע לפי grants_permits_scope=general_building_rights: {governing.plan_name}")
 
     # עדיפות 2: תכנית מפורטת מאושרת שלא כפופה לאחרת
+    # narrow_purpose לא ניכנסת כאן — מזכה בהיתר רק לנושא צר (שימור/שבילים/תשתית)
     if not governing:
-        detailed = [n for n in approved if n.plan_type == "מפורטת"]
+        detailed = [
+            n for n in approved
+            if n.plan_type == "מפורטת"
+            and n.grants_permits_scope not in ("narrow_purpose", "none")
+        ]
         not_superseded = [n for n in detailed if not _is_superseded(n, approved)]
         if not_superseded:
             # אם יש כמה תכניות מפורטות — בחר את האחרונה בזמן (pl_date גבוה יותר)
@@ -285,7 +303,7 @@ def _is_superseded(node: PlanNode, approved: List[PlanNode]) -> bool:
     """
     approved_numbers = {n.plan_number for n in approved if n.plan_number != node.plan_number}
     for rel in (node.relations or []):
-        if rel.get("type") == "כפיפות":
+        if rel.get("type") in ("כפיפות", "החלפה"):  # החלפה = plan A מחליפה את B לגמרי
             target = rel.get("target", "")
             if target in approved_numbers:
                 return True

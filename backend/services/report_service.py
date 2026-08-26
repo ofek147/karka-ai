@@ -358,6 +358,14 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     city_line = f", {city}" if city else ""
 
     # synthesis block — controlled values בלבד
+    # governing_plan מהגרף — מעבירים לפרומפט בצורה מפורשת
+    governing_info = ""
+    if graph_result:
+        if graph_result.governing_plan:
+            governing_info = f"תכנית קובעת (governing_plan): {graph_result.governing_plan} ({graph_result.governing_plan_number})"
+        else:
+            governing_info = "אין תכנית קובעת (governing_plan=None) — לא ניתן להוציא היתר ישירות כרגע"
+
     synthesis_block = ""
     if synthesis:
         primary = synthesis.get("primary_plan", "")
@@ -450,6 +458,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     ai_prompt = (
         f"נתוני חלקה:\n"
         f"גוש {gush}, חלקה {helka}{city_line}\n"
+        f"מצב זכויות (מהגרף): {governing_info}\n"
         f"שטח: {area_line}{yiud_breakdown}\n"
         f"ייעודי קרקע: {yiud_list}\n\n"
         f"תכניות רלוונטיות:\n{plans_list}"
@@ -472,6 +481,11 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         "דוגמה אסורה: '7,624 פחות 3,174 שווה 4,450 מ\"ר פנויים' — אל תעשה זאת.\n"
         "אם מספר לא נמצא בנתונים שקיבלת — כתוב 'לא ידוע' ולא תחשב אותו.\n"
         "\n"
+        "כלל governing_plan — חובה:\n"
+        "המשפט הראשון של הניתוח חייב לציין את מצב הזכויות הנוכחי במפורש:\n"
+        "- אם אין תכנית קובעת (governing_plan=None): פתח ב-'אין תכנית מפורטת מאושרת המזכה בזכויות בנייה ישירות — לא ניתן להוציא היתר כרגע.'\n"
+        "- אם יש תכנית קובעת: פתח ב-'תכנית [שם] מאושרת ומזכה בזכויות בנייה — ניתן להגיש היתר ישירות.'\n"
+        "אסור לכתוב שום ניסוח בתחילת הניתוח שעלול להשמע כאילו יש היתר/תכנית בתוקף אם governing_plan=None.\n\n"
         "כלל סטטוס תכניות — חובה:\n"
         "הסטטוס הרשמי של כל תכנית מוגדר בשדה 'סטטוס' שקיבלת ברשימת התכניות.\n"
         "אסור לשנות, לפרש, או להסיק סטטוס אחר מהטקסט — גם אם הנוסח בPDF נשמע אחרת.\n"
