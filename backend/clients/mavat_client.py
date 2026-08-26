@@ -47,6 +47,11 @@ _DIGITAL_MIN_CHARS = 200
 _TESS_LANG = "heb+eng"
 # Tesseract DPI for pdftoppm conversion (higher = better quality, slower)
 _PDF_DPI = 200
+# Max pages for OCR — sections 1.4/1.6 are almost always in first pages.
+# Avoids full OCR on 60+ page plans (e.g. תמ"א 70 = 64 pages).
+# If limit is hit, extraction_method="ocr_partial" signals downstream that
+# relations_confidence should be treated as low (may have missed section 1.6).
+_OCR_MAX_PAGES = 15
 
 
 def _extract_text_digital(pdf_path: str) -> str:
@@ -57,17 +62,19 @@ def _extract_text_digital(pdf_path: str) -> str:
     return "\n".join(parts)
 
 
-def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
+def _ocr_pdf(pdf_path: str) -> Tuple[str, float, bool]:
     """
     OCR a scanned PDF using Tesseract.
 
     Flow:
-      1. pdftoppm converts PDF pages → PPM images in a temp dir
+      1. pdftoppm converts PDF pages → PPM images in a temp dir (capped at _OCR_MAX_PAGES)
       2. Tesseract reads each image with Hebrew tessdata
-      3. Returns (combined_text, average_confidence)
+      3. Returns (combined_text, average_confidence, page_limit_hit)
 
     confidence is Tesseract's word-level mean confidence (0-100).
-    Returns ("", 0.0) on failure.
+    page_limit_hit=True if PDF had more pages than _OCR_MAX_PAGES —
+      signals that section 1.6 may have been cut off (caller sets ocr_partial).
+    Returns ("", 0.0, False) on failure.
     """
     try:
         import pytesseract
@@ -80,13 +87,20 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
     try:
         # Step 1: convert PDF → images via pdftoppm
         prefix = os.path.join(tmp_dir, "page")
+        # TODO(concurrency): subprocess.run is blocking — wraps the event loop.
+        # Currently safe because worker.py processes one job at a time (linear).
+        # When concurrent workers or direct HTTP serving is added, replace with:
+        #   loop = asyncio.get_event_loop()
+        #   result = await loop.run_in_executor(None, lambda: subprocess.run([...]))
         result = subprocess.run(
-            ["pdftoppm", "-r", str(_PDF_DPI), "-png", pdf_path, prefix],
+            ["pdftoppm", "-r", str(_PDF_DPI), "-png",
+             "-f", "1", "-l", str(_OCR_MAX_PAGES),
+             pdf_path, prefix],
             capture_output=True,
         )
         if result.returncode != 0:
             print(f"[mavat_client] pdftoppm failed: {result.stderr.decode()[:200]}")
-            return ("", 0.0)
+            return ("", 0.0, False)
 
         # Step 2: collect generated image files (sorted by page order)
         image_files = sorted(
@@ -94,7 +108,15 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
         )
         if not image_files:
             print("[mavat_client] pdftoppm produced no images")
-            return ("", 0.0)
+            return ("", 0.0, False)
+
+        # Detect if we hit the page limit (PDF may have more pages than _OCR_MAX_PAGES)
+        page_limit_hit = len(image_files) >= _OCR_MAX_PAGES
+        if page_limit_hit:
+            print(
+                f"[mavat_client] OCR page limit hit ({_OCR_MAX_PAGES} pages) — "
+                f"section 1.6 may be truncated. Setting extraction_method=ocr_partial."
+            )
 
         all_text_parts: list[str] = []
         all_confidences: list[float] = []
@@ -145,12 +167,13 @@ def _ocr_pdf(pdf_path: str) -> Tuple[str, float]:
         print(
             f"[mavat_client] OCR complete: {len(image_files)} pages, "
             f"{len(combined_text)} chars total, avg confidence={avg_confidence:.1f}%"
+            + (" [PAGE LIMIT HIT]" if page_limit_hit else "")
         )
-        return (combined_text, avg_confidence)
+        return (combined_text, avg_confidence, page_limit_hit)
 
     except Exception as e:
         print(f"[mavat_client] OCR pipeline error: {e}")
-        return ("", 0.0)
+        return ("", 0.0, False)
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
@@ -251,14 +274,15 @@ async def fetch_plan_pdf_text_from_url(
             f"[mavat_client] Digital text too short ({len(digital_text.strip())} chars) "
             f"— falling back to OCR: {plan_url}"
         )
-        ocr_text, ocr_confidence = _ocr_pdf(tmp_path)
+        ocr_text, ocr_confidence, page_limit_hit = _ocr_pdf(tmp_path)
+        ocr_method = "ocr_partial" if page_limit_hit else "ocr"
 
         if ocr_text.strip():
             print(
                 f"[mavat_client] OCR extraction: {len(ocr_text):,} chars, "
-                f"confidence={ocr_confidence:.1f}% (method=ocr)"
+                f"confidence={ocr_confidence:.1f}% (method={ocr_method})"
             )
-            return (ocr_text, ocr_confidence, "ocr")
+            return (ocr_text, ocr_confidence, ocr_method)
 
         # ── Step 3: both failed ───────────────────────────────────────────────
         print(f"[mavat_client] Both digital and OCR failed for {plan_url}")
