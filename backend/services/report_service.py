@@ -281,8 +281,12 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
 
     def _derive_plan_type(n: str) -> str:
         n = (n or "").strip()
-        if any(n.startswith(p) for p in ('תמ"א', "תתל", "תמל", 'תמ/א')):
+        # תמ"א + תתל + תמ/א = ארצית
+        # תמל בחוק (2014) = "כאילו תכנית מיתאר מקומית או מפורטת" — לא ארצית!
+        if any(n.startswith(p) for p in ('תמ"א', "תתל", 'תמ/א')):
             return "ארצית"
+        if n.startswith("תמל"):
+            return "מפורטת"  # תמל = כאילו מפורטת לפי חוק תכנון ובנייה (2014)
         if n.startswith("תמח"):
             return "מחוזית"
         if n.startswith("תמ"):
@@ -592,7 +596,7 @@ def _report_data_to_text(data: ReportData) -> str:
         num = p.pl_number or ""
         pt, can = plan_type_map.get(num, ("", None))
         if can is True:
-            return " [מפורטת — מזכה בהיתר]"
+            return f" [{pt or 'מפורטת'} — מזכה בהיתר]"
         if can is False and pt:
             return f" [{pt} — אינה מזכה בהיתר ישירות]"
         return ""
