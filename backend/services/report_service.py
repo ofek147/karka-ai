@@ -356,6 +356,12 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
     # ── 11. Claude final analysis ─────────────────────────────────────────────
     yiud_list = ", ".join(lu["yiud"] for lu in land_use_items[:5]) or "לא ידוע"
 
+    # מספרי תכניות תקפיים מ-iplan — מועברים לפרומפט כדי למנוע hallucination (תכניות שנזכרות בתוך PDF אבל אינן בנתוני iplan)
+    # TODO(anti-hallucination): הוסף post-processing hard gate: סנן כל תכנית שמוזכרת בדוח אבל לא קיימת ב-valid_plan_numbers.
+    # מספיק לוודא: כש hallucination תקף גם אם הפרומפט מפורש (בדיוק כמו can_issue_permit recompute ב-report_service קודם).
+    valid_plan_numbers = {p.pl_number for p in plans_raw if p.pl_number}
+    valid_plan_names = {p.pl_name or p.mavat_name or p.pl_number for p in plans_raw if p.pl_number}
+
     plans_list = "\n".join(
         f"- {p.pl_name or p.mavat_name or p.pl_number} (סטטוס: {_plan_internet_status(p)})"
         for p in plans_raw[:8]
@@ -496,7 +502,13 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         "אסור לשנות, לפרש, או להסיק סטטוס אחר מהטקסט — גם אם הנוסח בPDF נשמע אחרת.\n"
         "דוגמה אסורה: לכתוב 'תכנית מאושרת' אם הסטטוס שקיבלת הוא 'בתהליך הפקדה'.\n"
         "נתוני ציר זמן וקומות מסומנים כ'הערכה מ-PDF בלבד' — ציין זאת בפירוש בניתוח.\n"
-        "אל תיתן ייעוץ השקעתי. אל תציין יח\"ד מבוססות יחס אזורי מתמל."
+        "אל תיתן ייעוץ השקעתי. אל תציין יח\"ד מבוססות יחס אזורי מתמל.\n"
+        "\n"
+        "כלל חובה — מניעת המצאת תכניות (hallucination):\n"
+        f"רשימת מספרי התכניות התקפות לחלקה זו: {', '.join(sorted(valid_plan_numbers))}\n"
+        "בניתוח שלך התייחס אך ורק לתכניות שמספרן מופיע ברשימה זו.\n"
+        "אל תמציא תכניות נוספות שנזכרות בתוך מסמכי PDF אבל אינן על הרשימה.\n"
+        "דוגמה אסורה: להזכיר 'תכנית X (בדיון)' אם X לא מופיע ברשימת המספרים לעיל."
     )
 
     ai_analysis = "ניתוח AI לא זמין כרגע."
