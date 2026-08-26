@@ -58,7 +58,11 @@ async def get_cached_plan_summary(
     db: AsyncSession,
     plan_number: str,
 ) -> Optional[str]:
-    """Return cached Claude summary only (no invalidation — summary is stable)."""
+    """
+    Return cached Claude summary (free text, legacy field).
+    No staleness check — this is a legacy field not used in the main report flow.
+    Use get_cached_plan_summary_json (with last_modified) for the active path.
+    """
     result = await db.execute(
         select(PlanCache).where(PlanCache.plan_number == plan_number)
     )
@@ -123,13 +127,30 @@ async def set_cached_plan_summary(
 async def get_cached_plan_summary_json(
     db: AsyncSession,
     plan_number: str,
+    last_modified: Optional[datetime.datetime] = None,
 ) -> Optional[str]:
-    """החזר סיכום JSON מובנה (שלב 1) מה-cache."""
+    """
+    החזר סיכום JSON מובנה (שלב 1) מה-cache.
+
+    אם last_modified מסופק ו-receiving_date ב-iplan חדש יותר מה-cache:
+    מחזיר None — ה-summary_json יחשב כ-stale ו-re-extraction יורץ בהמשך ה-flow.
+    אם last_modified לא מסופק (None) — מחזיר כל מה שב-cache בלי בדיקה.
+    """
     result = await db.execute(
         select(PlanCache).where(PlanCache.plan_number == plan_number)
     )
     row = result.scalar_one_or_none()
-    return row.summary_json if row else None
+    if row is None:
+        return None
+
+    if last_modified is not None:
+        cached_at = row.cached_at.replace(tzinfo=None)
+        lm = last_modified.replace(tzinfo=None)
+        if lm > cached_at:
+            print(f"[plan_cache] summary_json stale for {plan_number} — iplan={lm} > cached={cached_at}, forcing re-extraction")
+            return None  # stale — יאלץ re-extraction בהמשך ה-flow
+
+    return row.summary_json
 
 
 async def set_cached_plan_summary_json(

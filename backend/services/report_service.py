@@ -192,7 +192,7 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
                     pass
 
             # בדוק cache summary_json קודם
-            cached_json_str = await get_cached_plan_summary_json(db, plan.pl_number)
+            cached_json_str = await get_cached_plan_summary_json(db, plan.pl_number, last_modified=last_modified)
             if cached_json_str:
                 parsed = _parse_json_safe(cached_json_str)
                 if parsed:
