@@ -403,7 +403,6 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
         av = calculations.get("available_land_value")
         unav = calculations.get("unavailable_land_value")
         ppm = calculations.get("price_per_sqm")
-        eu = calculations.get("estimated_units_for_parcel")
         note = calculations.get("price_note", "")
         calc_block = (
             f"\n\nנתונים כלכליים (לצרכי הצגה בלבד):"

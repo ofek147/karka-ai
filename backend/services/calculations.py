@@ -5,11 +5,14 @@ calculations.py — חישובי שכבה 3 לדוח karka-ai
 ומחשב את הערכים הכלכליים לדוח.
 
 נוסחאות:
-    sqm_per_unit          = plan_size_dunam × 1000 / total_units
-    relative_share        = parcel_size_sqm / (plan_size_dunam × 1000)
     available_land_value  = (price_per_sqm × 100) - היטל_השבחה_50% - (13000 × 100) - רווח_יזמי_15%
     unavailable_land_value = available_land_value × (1.20)^(-approval_years)
     apartment_price_100   = price_per_sqm × 100
+
+הוסר בכוונה:
+    relative_share        — יחס שטח חלקה / שטח תכנית — לא רלוונטי לחלקה ספציפית
+    estimated_units_for_parcel — הבאג המקורי (2.8 יח"ד) — הוסר לגמרי
+    sqm_per_unit          — מ"ר ליח"ד בתכנית כוללת — אינו רלוונטי לחלקה, הוסר למנוע שימוש שגוי עתידי
 """
 
 from __future__ import annotations
@@ -60,10 +63,7 @@ class ParcelCalculations:
     total_units: Optional[int]
     price_source: PriceSource
 
-    # חישובים
-    sqm_per_unit: Optional[float] = field(init=False, default=None)
-    relative_share: Optional[float] = field(init=False, default=None)
-    estimated_units_for_parcel: Optional[float] = field(init=False, default=None)
+    # חישובים (relative_share / estimated_units_for_parcel / sqm_per_unit הוסרו — ראה docstring)
     apartment_price_100: Optional[float] = field(init=False, default=None)
     available_land_value: Optional[float] = field(init=False, default=None)
     unavailable_land_value: Optional[float] = field(init=False, default=None)
@@ -76,22 +76,6 @@ class ParcelCalculations:
 
     def _compute(self):
         p = self.price_source.price_per_sqm
-
-        # מ"ר קרקע ליח"ד
-        if self.plan_size_dunam and self.total_units and self.total_units > 0:
-            self.sqm_per_unit = round(
-                (self.plan_size_dunam * 1000) / self.total_units, 1
-            )
-
-        # חלק יחסי + יחידות לחלקה
-        if self.parcel_size_sqm and self.plan_size_dunam and self.plan_size_dunam > 0:
-            self.relative_share = round(
-                self.parcel_size_sqm / (self.plan_size_dunam * 1000), 4
-            )
-            if self.total_units:
-                self.estimated_units_for_parcel = round(
-                    self.relative_share * self.total_units, 2
-                )
 
         # מחיר דירה 100 מ"ר
         self.apartment_price_100 = round(p * 100)
@@ -122,9 +106,6 @@ class ParcelCalculations:
             "deal_count": self.price_source.deal_count,
             "trend_pct": self.price_source.trend_pct,
             "trend_direction": self.price_source.trend_direction,
-            "sqm_per_unit": self.sqm_per_unit,
-            "relative_share": self.relative_share,
-            "estimated_units_for_parcel": self.estimated_units_for_parcel,
             "apartment_price_100": self.apartment_price_100,
             "available_land_value": self.available_land_value,
             "unavailable_land_value": self.unavailable_land_value,
