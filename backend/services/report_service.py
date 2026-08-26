@@ -301,11 +301,13 @@ async def generate_report(gush: int, helka: int, db: Optional[AsyncSession] = No
             s["plan_type"] = _derive_plan_type(pnum)
         gp_scope = s.get("grants_permits_scope") or (_migrate_gp(s.get("grants_permits")))
         pt = s.get("plan_type", "")
-        if gp_scope in ("general_building_rights", "narrow_purpose"):
+        # can_issue_permit: רק general_building_rights מזכה בהיתר כללי
+        # narrow_purpose מזכה בהיתר לנושא צר בלבד (לא ניתן להציג כ"[מזכה בהיתר]" בדוח)
+        if gp_scope == "general_building_rights":
             s["can_issue_permit"] = True
-        elif gp_scope == "none":
+        elif gp_scope in ("narrow_purpose", "none"):
             s["can_issue_permit"] = False
-        else:  # null / ambiguous
+        else:  # null / ambiguous — הסתמך על iplan: מפורטת בתוקף בלבד
             s["can_issue_permit"] = (iplan_stage in APPROVED_STATUSES_SET and pt == "מפורטת")
 
     # ── 9. בניית גרף דטרמיניסטי + synthesize_plans ──────────────────────────

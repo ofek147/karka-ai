@@ -179,7 +179,7 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         '  "plan_type": "ארצית/מחוזית/מתארית/מפורטת — בחר אחד",\n'
         '  "grants_permits_scope": <"general_building_rights" אם התכנית מזכה בהיתרי בנייה כלליים (מגורים/מסחר/תעשייה/יח"ד/מ"ר בנייה) | "narrow_purpose" אם מזכה בהיתר לנושא צר בלבד (תשתית/שימור/שבילים/ניקוז) | "none" אם לא מזכה בהיתר כלל | null אם לא ניתן לקבוע מהטקסט>,\n'
         '  "contains_detailed_provisions": <true אם כתוב במפורש \'מכילה הוראות של תכנית מפורטת\', false אחרת, null אם לא מוזכר>,\n'
-        '  "can_issue_permit": <true אם grants_permits_scope in ("general_building_rights","narrow_purpose"), או plan_type=מפורטת ו-plan_stage=בתוקף>,\n'
+        '  "can_issue_permit": <true אם grants_permits_scope=="general_building_rights" או (grants_permits_scope==null ו-plan_type=מפורטת ו-plan_stage=בתוקף). false אם scope=narrow_purpose או none — אפילו אם plan_type=מפורטת>,\n'
         '  "is_overlay": <true אם התכנית עוסקת אך ורק בשימור/דרכים/תשתיות/שבילים ואינה קובעת זכויות בנייה כלליות, false אחרת>,\n'
         '  "relations": [\n'
         '    {"target": "מספר תכנית", "type": "כפיפות|שינוי|החלפה|ביטול", "note": "הערה קצרה או null"}\n'
@@ -197,7 +197,7 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         "  דוגמה: תכנית שימור אתרים — narrow_purpose (מזכה בהיתר לעבודות שימור בלבד).\n"
         "  דוגמה: תמ\"ל/תת\"ל למגורים עם אחוזי בנייה — general_building_rights.\n"
         "- contains_detailed_provisions: חלץ מהטקסט בלבד — אל תנחש.\n"
-        "- can_issue_permit: true אם grants_permits_scope in (general_building_rights, narrow_purpose), או plan_type=מפורטת ו-plan_stage=בתוקף\n"
+        "- can_issue_permit: true רק אם grants_permits_scope==general_building_rights, או (scope==null ו-plan_type=מפורטת ו-plan_stage=בתוקף). narrow_purpose/none הם false אוטומטית בלי יוצאים\n"
         "- is_overlay: true דוגמאות — תכנית שימור אתרים, תכנית שבילי אופניים, תכנית חישוב שטחים. false — תכניות שקובעות יחידות דיור/זכויות בנייה/ייעוד קרקע.\n"
         "- relations: חלץ מסעיף 1.6 בטקסט שכותרתו 'יחס בין התכנית לבין תכניות מאושרות קודמות'.\n"
         "  אם הסעיף לא קיים בטקסט — החזר relations: [].\n"
