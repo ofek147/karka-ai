@@ -100,6 +100,57 @@ async def generate_title(first_message: str) -> str:
         return first_message[:40]
 
 
+def _extract_relevant_windows(pdf_text: str, max_chars: int = 25000) -> str:
+    """
+    Smart truncation: instead of blindly taking the first 25K chars,
+    locate the two critical sections (1.4 + 1.6) and extract windows around them.
+
+    Section 1.4 — grants_permits_scope: anchors = "סיווג התכנית" / "היתרים או הרשאות"
+    Section 1.6 — relations:            anchors = "יחס בין התכנית" / "תכניות מאושרות קודמות"
+
+    Window per anchor: max(0, idx-500) : idx+3000
+    Overlapping windows are merged.
+    Fallback: first max_chars chars (original behaviour) if no anchor found.
+    """
+    ANCHORS = [
+        "סיווג התכנית",          # 1.4 סיווג
+        "היתרים או הרשאות",   # 1.4 היתרים
+        "יחס בין התכנית",       # 1.6 יחס
+        "תכניות מאושרות קודמות",  # 1.6 תכניות
+    ]
+    BEFORE = 500
+    AFTER  = 3000
+
+    windows: list[tuple[int, int]] = []
+    for anchor in ANCHORS:
+        idx = pdf_text.find(anchor)
+        if idx != -1:
+            windows.append((max(0, idx - BEFORE), idx + AFTER))
+
+    if not windows:
+        # Fallback: original behaviour
+        return pdf_text[:max_chars]
+
+    # Merge overlapping / adjacent windows
+    windows.sort()
+    merged: list[tuple[int, int]] = [windows[0]]
+    for start, end in windows[1:]:
+        prev_start, prev_end = merged[-1]
+        if start <= prev_end:
+            merged[-1] = (prev_start, max(prev_end, end))
+        else:
+            merged.append((start, end))
+
+    # Always include the very beginning (first 2K) for plan metadata
+    # unless the first window already covers it
+    if merged[0][0] > 0:
+        merged.insert(0, (0, min(2000, merged[0][0])))
+
+    parts = [pdf_text[s:e] for s, e in merged]
+    result = "\n[...]\n".join(parts)
+    return result[:max_chars]
+
+
 async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str:
     """
     שלב 1: חילוץ נתונים מובנים מתכנית בודדת → JSON.
@@ -111,7 +162,7 @@ async def summarize_plan(plan_name: str, plan_number: str, pdf_text: str) -> str
         "החזר JSON בלבד — ללא טקסט לפני או אחרי, ללא markdown, ללא ```json.\n\n"
         f"שם תכנית: {plan_name}\n"
         f"מספר תכנית: {plan_number}\n\n"
-        f"{pdf_text[:25000]}\n\n"
+        f"{_extract_relevant_windows(pdf_text)}\n\n"
         "JSON נדרש:\n"
         "{\n"
         '  "plan_name": "שם התכנית",\n'
